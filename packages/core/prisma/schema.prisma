@@ -1,0 +1,66 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+model MemoryEntry {
+  id             String   @id @default(uuid())
+  type           String
+  title          String
+  body           String
+  tags           String[]
+  status         String   @default("active")
+  confidence     Float    @default(1.0)
+  supersedesId   String?
+  supersededById String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sources MemorySource[]
+
+  @@index([type])
+  @@index([status])
+  @@index([tags], type: Gin)
+  @@index([supersedesId])
+  @@index([supersededById])
+  @@map("memory_entries")
+}
+
+model MemorySource {
+  id            String   @id @default(uuid())
+  memoryEntryId String
+  sourceType    String
+  sourceRef     String
+  sourceTitle   String?
+  /// Attribution context only; do not store reproduced external content.
+  sourceExcerpt String?  @db.VarChar(500)
+  createdAt     DateTime @default(now())
+
+  memoryEntry MemoryEntry @relation(fields: [memoryEntryId], references: [id], onDelete: Cascade)
+
+  @@index([memoryEntryId])
+  @@index([sourceType])
+  @@map("memory_sources")
+}
+
+model RefreshLog {
+  id          String    @id @default(uuid())
+  source      String
+  startedAt   DateTime
+  completedAt DateTime?
+  recordCount Int       @default(0)
+  errorCount  Int       @default(0)
+  status      String
+  errorMsg    String?
+
+  @@index([source])
+  @@index([status])
+  @@index([startedAt])
+  @@map("refresh_logs")
+}
