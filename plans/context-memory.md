@@ -21,9 +21,11 @@ This file is the working implementation memory for the repo. Update it as phases
 
 - Branch: `project-memory-implementation`.
 - Phase 0 scaffold is present from `origin/main`.
-- Project Memory Phase 1 is implemented locally and verified.
+- Project Memory Phase 1 was started from this context-memory plan and is now implemented and verified.
 - `MemoryEntry` is exclusively for project-level decisions, notes, and research provenance.
-- YC company intelligence data belongs in future `Company`, `Job`, `Founder`, `HNPost`, and related models.
+- YC company intelligence data belongs in dedicated `Company`, `Founder`, `Job`, `HNPost`, and related models.
+- Phase 2 has been started with the YC company fetch slice. Company rows can be populated from the live YC companies list endpoint; the current endpoint does not include founder data, so `Founder` remains schema/repository-ready but unpopulated by the current fetch path.
+- Next implementation work should continue with either company query/service work or the job/tech-stack slice, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -49,7 +51,7 @@ Status: complete as of 2026-05-23.
 - [x] Add memory service with active-by-default search, source excerpt capping, and bidirectional supersession.
 - [x] Add repository and service tests.
 
-Status: complete as of 2026-05-23. Verification passed with:
+Status: complete as of 2026-05-23. This was the first implementation phase started from the context-memory plan. Verification passed with:
 
 - `pnpm --filter @yc-intelligence/core prisma:generate`
 - `DATABASE_URL=postgresql://yc_user:yc_password@localhost:5433/yc_intelligence pnpm --filter @yc-intelligence/core exec prisma validate`
@@ -62,12 +64,47 @@ Status: complete as of 2026-05-23. Verification passed with:
 ### Phase 2: Data Pipeline
 
 - [x] Add HTTP client with retry/rate limiting.
-- [ ] Add YC fetcher and transformer.
+- [x] Add YC fetcher and transformer.
 - [ ] Add job board fetcher.
 - [ ] Add tech stack extractor.
 - [ ] Add HN fetcher.
 - [ ] Add GitHub fetcher.
 - [ ] Add pipeline orchestrator, CLI, and scheduler.
+
+#### Phase 2 YC Company Fetch Slice
+
+- [x] Add `Company` and `Founder` domain types.
+- [x] Add Prisma schema and migration for `Company` and `Founder`.
+- [x] Add company, founder, and refresh-log repository interfaces.
+- [x] Add Prisma company, founder, and refresh-log repository implementations.
+- [x] Add YC transformer with normalization for live YC company payloads and founder payloads when present.
+- [x] Add YC fetcher with page/limit pagination, company/founder upserts, and refresh logging.
+- [x] Add `pipeline:companies` script for running this slice.
+- [x] Add transformer, fetcher, and opt-in repository integration tests.
+- [x] Patch transformer compatibility for live YC camelCase fields: `oneLiner`, `longDescription`, `teamSize`, `isHiring`, `locations`, and `industries`.
+
+Status: complete as of 2026-05-23. Verification passed with:
+
+- `pnpm --filter @yc-intelligence/core prisma:generate`
+- `DATABASE_URL=postgresql://yc_user:yc_password@localhost:5433/yc_intelligence pnpm --filter @yc-intelligence/core exec prisma validate`
+- `pnpm --filter @yc-intelligence/core typecheck`
+- `pnpm --filter @yc-intelligence/core test`
+- `pnpm --filter @yc-intelligence/core build`
+- `pnpm --filter @yc-intelligence/core lint`
+- `pnpm typecheck`
+- `pnpm test`
+
+Manual local smoke verification also passed:
+
+- `pnpm --filter @yc-intelligence/core exec prisma db push`
+- `pnpm --filter @yc-intelligence/core build`
+- A one-off Node script fetched `https://api.ycombinator.com/v0.1/companies?page=1&limit=100` and upserted the returned first page.
+- The live API returned 25 companies for that request.
+- Local Postgres contained 25 companies and 0 founders after the smoke run.
+- Rerunning the one-off script updated rows by `slug` rather than duplicating them.
+- `shortDescription`, `description`, `teamSize`, and `location` were populated after the transformer compatibility patch.
+
+Full `pipeline:companies` live ingestion and opt-in Prisma integration tests were not run after this manual smoke verification. The current YC list endpoint response inspected during testing does not include `founders`, so founder ingestion requires a later source or endpoint decision.
 
 ### Phase 3: Service Layer
 
@@ -112,3 +149,4 @@ Status: complete as of 2026-05-23. Verification passed with:
 - Do not scrape LinkedIn; founder background fields remain empty unless available from permitted sources.
 - Core must not import MCP or API. MCP and API may import core.
 - Keep project memory separate from YC company intelligence data.
+- Treat context memory as the rolling implementation handoff: update this file after each completed phase before starting the next one.

@@ -49,6 +49,49 @@ model MemorySource {
   @@map("memory_sources")
 }
 
+model Company {
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  batch            String?
+  status           String   @default("Active")
+  description      String?
+  shortDescription String?
+  website          String?
+  teamSize         String?
+  isHiring         Boolean  @default(false)
+  tags             String[]
+  location         String?
+  rawData          Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  founders Founder[]
+
+  @@index([slug])
+  @@index([batch])
+  @@index([status])
+  @@index([isHiring])
+  @@index([tags], type: Gin)
+  @@map("companies")
+}
+
+model Founder {
+  id                String   @id @default(uuid())
+  companyId         String
+  name              String
+  linkedinUrl       String?
+  previousEmployers String[]
+  schools           String[]
+  createdAt         DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("founders")
+}
+
 model RefreshLog {
   id          String    @id @default(uuid())
   source      String
