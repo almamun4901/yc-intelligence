@@ -1,23 +1,32 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaCompanyRepository, PrismaFounderRepository, PrismaRefreshLogRepository } from '../repositories/impl'
-import { YCFetcher } from './fetchers'
+import {
+  PrismaCompanyRepository,
+  PrismaFounderRepository,
+  PrismaJobRepository,
+  PrismaRefreshLogRepository
+} from '../repositories/impl'
+import { JobBoardFetcher, YCFetcher } from './fetchers'
 
 async function main() {
   const command = process.argv[2]
 
-  if (command !== 'companies') {
-    throw new Error(`Unknown pipeline command "${command ?? ''}". Valid commands: companies`)
+  if (command !== 'companies' && command !== 'jobs') {
+    throw new Error(`Unknown pipeline command "${command ?? ''}". Valid commands: companies, jobs`)
   }
 
   const prisma = new PrismaClient()
   try {
     const companyRepo = new PrismaCompanyRepository(prisma)
-    const founderRepo = new PrismaFounderRepository(prisma)
-    const refreshLogRepo = new PrismaRefreshLogRepository(prisma)
-    const fetcher = new YCFetcher(companyRepo, founderRepo, refreshLogRepo)
-    const result = await fetcher.run()
+    const result =
+      command === 'companies'
+        ? await new YCFetcher(
+            companyRepo,
+            new PrismaFounderRepository(prisma),
+            new PrismaRefreshLogRepository(prisma)
+          ).run()
+        : await new JobBoardFetcher(companyRepo, new PrismaJobRepository(prisma)).run()
 
-    process.stdout.write(`YC companies pipeline complete: ${JSON.stringify(result)}\n`)
+    process.stdout.write(`YC ${command} pipeline complete: ${JSON.stringify(result)}\n`)
   } finally {
     await prisma.$disconnect()
   }
