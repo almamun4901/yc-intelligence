@@ -9,6 +9,7 @@
     "dev": "tsc -p tsconfig.json --watch",
     "lint": "eslint src --ext .ts",
     "pipeline:companies": "node dist/pipeline/cli.js companies",
+    "pipeline:jobs": "node dist/pipeline/cli.js jobs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "test": "vitest run --passWithNoTests",

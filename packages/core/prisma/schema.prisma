@@ -67,6 +67,7 @@ model Company {
   updatedAt        DateTime @updatedAt
 
   founders Founder[]
+  jobs     Job[]
 
   @@index([slug])
   @@index([batch])
@@ -74,6 +75,30 @@ model Company {
   @@index([isHiring])
   @@index([tags], type: Gin)
   @@map("companies")
+}
+
+model Job {
+  id          String   @id @default(uuid())
+  companyId   String
+  title       String
+  location    String?
+  isRemote    Boolean  @default(false)
+  description String?
+  techStack   String[]
+  atsSource   String
+  applyUrl    String   @unique
+  isActive    Boolean  @default(true)
+  postedAt    DateTime?
+  fetchedAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([isActive])
+  @@index([isRemote])
+  @@index([atsSource])
+  @@index([techStack], type: Gin)
+  @@map("jobs")
 }
 
 model Founder {

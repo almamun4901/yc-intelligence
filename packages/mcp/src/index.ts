@@ -3,6 +3,7 @@
 import { createProductionMcpServer, logger } from './server'
 
 export * from './companyTools'
+export * from './jobTools'
 export * from './server'
 
 if (require.main === module) {
