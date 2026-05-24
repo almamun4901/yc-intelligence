@@ -47,7 +47,7 @@ describe('CompanyService', () => {
 
     const detail = await service.getCompanyDetail('  acme-ai  ')
 
-    expect(detail).toEqual({ ...company, founders })
+    expect(detail).toEqual({ ...company, founders, hnPosts: [] })
   })
 
   it('returns null when company detail is missing', async () => {

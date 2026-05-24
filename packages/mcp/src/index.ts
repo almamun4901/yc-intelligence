@@ -3,10 +3,12 @@
 import { createProductionMcpServer, logger } from './server'
 
 export * from './companyTools'
+export * from './hnTools'
 export * from './jobTools'
 export * from './server'
 
 if (require.main === module) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js') as {
     StdioServerTransport: new () => unknown
   }

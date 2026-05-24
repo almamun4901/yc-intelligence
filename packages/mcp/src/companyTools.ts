@@ -4,7 +4,6 @@ import { z } from 'zod'
 
 export type CompanyToolService = Pick<CompanyService, 'searchCompanies' | 'getCompanyDetail'>
 type ToolHandler<TInput> = (input: TInput) => Promise<CallToolResult>
-type GetCompanyDetailInput = z.infer<typeof getCompanyDetailObjectSchema>
 
 export interface ToolServer {
   registerTool<TInput>(
@@ -32,6 +31,10 @@ export const searchCompaniesInputSchema = {
 
 export const getCompanyDetailInputSchema = {
   slug: z.string().min(1)
+}
+
+type GetCompanyDetailInput = {
+  slug: string
 }
 
 export const registerCompanyTools = (server: ToolServer, companyService: CompanyToolService) => {
@@ -114,12 +117,19 @@ export const handleGetCompanyDetail = async (
         previousEmployers: founder.previousEmployers,
         schools: founder.schools
       })),
+      hnPosts: detail.hnPosts.map((post) => ({
+        title: post.title,
+        url: post.url,
+        author: post.author,
+        points: post.points,
+        comments: post.commentCount,
+        postType: post.postType,
+        postedAt: post.postedAt.toISOString()
+      })),
       updatedAt: detail.updatedAt.toISOString()
     }
   })
 }
-
-const getCompanyDetailObjectSchema = z.object(getCompanyDetailInputSchema)
 
 const jsonResult = (value: unknown): CallToolResult => ({
   content: [

@@ -2,16 +2,17 @@ import { PrismaClient } from '@prisma/client'
 import {
   PrismaCompanyRepository,
   PrismaFounderRepository,
+  PrismaHNPostRepository,
   PrismaJobRepository,
   PrismaRefreshLogRepository
 } from '../repositories/impl'
-import { JobBoardFetcher, YCFetcher } from './fetchers'
+import { HNFetcher, JobBoardFetcher, YCFetcher } from './fetchers'
 
 async function main() {
   const command = process.argv[2]
 
-  if (command !== 'companies' && command !== 'jobs') {
-    throw new Error(`Unknown pipeline command "${command ?? ''}". Valid commands: companies, jobs`)
+  if (command !== 'companies' && command !== 'jobs' && command !== 'hn') {
+    throw new Error(`Unknown pipeline command "${command ?? ''}". Valid commands: companies, jobs, hn`)
   }
 
   const prisma = new PrismaClient()
@@ -24,9 +25,15 @@ async function main() {
             new PrismaFounderRepository(prisma),
             new PrismaRefreshLogRepository(prisma)
           ).run()
-        : await new JobBoardFetcher(companyRepo, new PrismaJobRepository(prisma), {
-            maxCompanies: parsePositiveInteger(process.env.JOB_PIPELINE_LIMIT)
-          }).run()
+        : command === 'jobs'
+          ? await new JobBoardFetcher(companyRepo, new PrismaJobRepository(prisma), {
+              maxCompanies: parsePositiveInteger(process.env.JOB_PIPELINE_LIMIT)
+            }).run()
+          : await new HNFetcher(companyRepo, new PrismaHNPostRepository(prisma), {
+              maxCompanies: parsePositiveInteger(process.env.HN_PIPELINE_LIMIT),
+              lookbackDays: parsePositiveInteger(process.env.HN_LOOKBACK_DAYS),
+              maxPagesPerCompany: parsePositiveInteger(process.env.HN_MAX_PAGES_PER_COMPANY)
+            }).run()
 
     process.stdout.write(`YC ${command} pipeline complete: ${JSON.stringify(result)}\n`)
   } finally {

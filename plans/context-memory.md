@@ -28,7 +28,8 @@ This file is the working implementation memory for the repo. Update it as phases
 - Phase 3/4 company query vertical slice is implemented. Core now exposes `CompanyService`; MCP now registers `search_companies` and `get_company_detail` over that service.
 - Phase 5 REST company API slice is implemented. API now exposes `/health`, `/companies`, and `/companies/:slug` over `CompanyService`, with Redis-backed best-effort caching for successful company GET responses.
 - Job search foundation is implemented and live-smoke verified. Core now has `Job`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
-- Next implementation work should continue with richer company detail aggregation, HN ingestion, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
+- HN ingestion vertical slice is implemented and live-smoke verified. Core now has `HNPost`, `CompanyHNSyncState`, `IHNPostRepository`, `PrismaHNPostRepository`, `HNFetcher`, `HNService`, and `pipeline:hn`; MCP registers `get_hn_activity`; company detail includes recent/top HN posts when an HN repository is injected.
+- Next implementation work should continue with GitHub ingestion, semantic search/embeddings, richer company detail aggregation, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -70,7 +71,7 @@ Status: complete as of 2026-05-23. This was the first implementation phase start
 - [x] Add YC fetcher and transformer.
 - [x] Add job board fetcher.
 - [x] Add tech stack extractor.
-- [ ] Add HN fetcher.
+- [x] Add HN fetcher.
 - [ ] Add GitHub fetcher.
 - [ ] Add pipeline orchestrator, CLI, and scheduler.
 
@@ -114,7 +115,8 @@ Full `pipeline:companies` live ingestion and opt-in Prisma integration tests wer
 - [x] Add project memory service.
 - [x] Add company service.
 - [x] Add job service.
-- [ ] Add founder, HN, and embedding services.
+- [x] Add HN service.
+- [ ] Add founder and embedding services.
 - [x] Keep business logic out of adapters.
 
 ### Phase 4: MCP Package
@@ -123,8 +125,8 @@ Full `pipeline:companies` live ingestion and opt-in Prisma integration tests wer
 - [x] Register `search_companies`.
 - [x] Register `get_company_detail`.
 - [x] Register `search_jobs`.
+- [x] Register `get_hn_activity`.
 - [ ] Register `search_founders`.
-- [ ] Register `get_hn_activity`.
 - [ ] Register `semantic_search`.
 - [ ] Register future memory tools such as `add_memory`, `search_memory`, and `supersede_memory`.
 
@@ -190,6 +192,28 @@ Live smoke verification notes:
 - REST `GET /jobs?limit=3` returned HTTP 200 with `total: 6147`.
 - MCP `search_jobs` over Prisma-backed `JobService` returned `total: 6147`.
 - Full unbounded ingestion should be rerun after adding stronger progress/resume controls or a known ATS slug mapping layer; job search is usable against the current local corpus, but full-refresh runtime remains a pipeline scalability concern.
+
+#### HN Ingestion Slice
+
+- [x] Add `HNPost` and `CompanyHNSyncState` Prisma models and migration.
+- [x] Add `HNPost` domain type and HN search params.
+- [x] Add `IHNPostRepository` and `PrismaHNPostRepository` with upsert, search, and per-company sync state support.
+- [x] Add `HNFetcher` over HN Algolia `search_by_date` with per-company checkpoint windows, query variants, objectID dedupe, post-type classification, and per-company failure recording.
+- [x] Add `HNService` with normalized `searchHNActivity`.
+- [x] Add `pipeline:hn` script with `HN_PIPELINE_LIMIT`, `HN_LOOKBACK_DAYS`, and `HN_MAX_PAGES_PER_COMPANY`.
+- [x] Add MCP `get_hn_activity`.
+- [x] Add HN post summaries to company detail when an HN repository is injected.
+- [x] Add unit tests, MCP adapter tests, and opt-in Prisma repository integration coverage.
+
+Status: implementation complete and live-smoke verified as of 2026-05-24.
+
+Live smoke verification notes:
+
+- `DATABASE_URL=postgresql://yc_user:yc_password@localhost:5433/yc_intelligence pnpm --filter @yc-intelligence/core exec prisma migrate deploy` applied `20260524090000_hn_ingestion`.
+- `HN_PIPELINE_LIMIT=25 DATABASE_URL=postgresql://yc_user:yc_password@localhost:5433/yc_intelligence pnpm --filter @yc-intelligence/core pipeline:hn` completed with `{"processed":25,"postsFound":241,"postsUpserted":241,"errors":0}`.
+- Post-smoke local database had 235 unique `HNPost` rows and 25 `CompanyHNSyncState` rows.
+- MCP `get_hn_activity` handler over Prisma-backed `HNService` returned HN posts successfully.
+- HN matching is conservative enough for MVP ingestion, but broad company names such as `Y Combinator` can still collect noisy general HN stories; a future relevance tuning pass should add ignore/mapping rules for broad entities.
 
 ### Phase 6: Testing
 

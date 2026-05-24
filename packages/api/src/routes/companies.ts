@@ -116,6 +116,15 @@ export const registerCompanyRoutes = (app: FastifyInstance, options: CompanyRout
             previousEmployers: founder.previousEmployers,
             schools: founder.schools
           })),
+          hnPosts: detail.hnPosts.map((post) => ({
+            title: post.title,
+            url: post.url,
+            author: post.author,
+            points: post.points,
+            comments: post.commentCount,
+            postType: post.postType,
+            postedAt: post.postedAt.toISOString()
+          })),
           updatedAt: detail.updatedAt.toISOString()
         }
       }

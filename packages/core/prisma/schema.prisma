@@ -68,6 +68,8 @@ model Company {
 
   founders Founder[]
   jobs     Job[]
+  hnPosts  HNPost[]
+  hnSyncState CompanyHNSyncState?
 
   @@index([slug])
   @@index([batch])
@@ -75,6 +77,48 @@ model Company {
   @@index([isHiring])
   @@index([tags], type: Gin)
   @@map("companies")
+}
+
+model HNPost {
+  id           String   @id @default(uuid())
+  companyId    String
+  hnObjectId   String   @unique
+  hnItemId     String?
+  title        String
+  url          String?
+  author       String?
+  points       Int      @default(0)
+  commentCount Int      @default(0)
+  postType     String
+  postedAt     DateTime
+  fetchedAt    DateTime @default(now())
+  rawData      Json?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([postType])
+  @@index([postedAt])
+  @@index([points])
+  @@index([commentCount])
+  @@map("hn_posts")
+}
+
+model CompanyHNSyncState {
+  id                     String    @id @default(uuid())
+  companyId              String    @unique
+  lastFetchedAt           DateTime?
+  lastSuccessfulSearchAt  DateTime?
+  lastSeenPostedAt        DateTime?
+  failureCount            Int       @default(0)
+  lastError               String?
+  updatedAt               DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([lastSuccessfulSearchAt])
+  @@index([failureCount])
+  @@map("company_hn_sync_states")
 }
 
 model Job {

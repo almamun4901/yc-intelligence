@@ -69,7 +69,8 @@ describe('API company routes', () => {
     const service = new TestCompanyService()
     service.detailResult = {
       ...makeCompany(),
-      founders: [makeFounder()]
+      founders: [makeFounder()],
+      hnPosts: []
     }
     const app = buildServer({ companyService: service, logger: testLogger })
 
@@ -99,6 +100,7 @@ describe('API company routes', () => {
             schools: []
           }
         ],
+        hnPosts: [],
         updatedAt: '2026-05-23T00:00:00.000Z'
       }
     })
@@ -151,7 +153,7 @@ describe('API company routes', () => {
 
 class TestCompanyService {
   searchResult: { data: Company[]; total: number } = { data: [], total: 0 }
-  detailResult: (Company & { founders: Founder[] }) | null = null
+  detailResult: (Company & { founders: Founder[]; hnPosts: [] }) | null = null
   lastSearchParams: CompanySearchParams | null = null
   lastDetailSlug: string | null = null
   searchCalls = 0
@@ -162,7 +164,7 @@ class TestCompanyService {
     return this.searchResult
   }
 
-  async getCompanyDetail(slug: string): Promise<(Company & { founders: Founder[] }) | null> {
+  async getCompanyDetail(slug: string): Promise<(Company & { founders: Founder[]; hnPosts: [] }) | null> {
     this.lastDetailSlug = slug
     return this.detailResult
   }
