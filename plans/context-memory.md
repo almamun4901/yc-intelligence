@@ -19,14 +19,15 @@ This file is the working implementation memory for the repo. Update it as phases
 
 ## Current Working State
 
-- Branch: `project-memory-implementation`.
+- Branch: `rest-company-routes`.
 - Phase 0 scaffold is present from `origin/main`.
 - Project Memory Phase 1 was started from this context-memory plan and is now implemented and verified.
 - `MemoryEntry` is exclusively for project-level decisions, notes, and research provenance.
 - YC company intelligence data belongs in dedicated `Company`, `Founder`, `Job`, `HNPost`, and related models.
 - Phase 2 has been started with the YC company fetch slice. Company rows can be populated from the live YC companies list endpoint; the current endpoint does not include founder data, so `Founder` remains schema/repository-ready but unpopulated by the current fetch path.
 - Phase 3/4 company query vertical slice is implemented. Core now exposes `CompanyService`; MCP now registers `search_companies` and `get_company_detail` over that service.
-- Next implementation work should continue with either REST company routes, job/tech-stack ingestion, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
+- Phase 5 REST company API slice is implemented. API now exposes `/health`, `/companies`, and `/companies/:slug` over `CompanyService`, with Redis-backed best-effort caching for successful company GET responses.
+- Next implementation work should continue with job/tech-stack ingestion, job service/routes, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -147,9 +148,21 @@ Implementation note: MCP SDK and Prisma runtime classes are loaded dynamically i
 
 ### Phase 5: REST API Package
 
-- [ ] Scaffold Fastify server and `/health`.
-- [ ] Add company and job routes.
-- [ ] Add Redis caching middleware.
+- [x] Scaffold Fastify server and `/health`.
+- [x] Add company routes.
+- [ ] Add job routes.
+- [x] Add Redis caching middleware for company GET routes.
+
+#### Phase 5 REST Company API Slice
+
+- [x] Wire API production composition root over Prisma-backed company/founder repositories and `CompanyService`.
+- [x] Add `GET /companies` with filters for `query`, `batch`, `status`, `industry`, `isHiring`, `limit`, and `offset`.
+- [x] Add `GET /companies/:slug` with founder data when founder rows exist.
+- [x] Add request validation and 404 handling for missing company details.
+- [x] Add best-effort Redis response caching for successful company GET responses, with uncached fallback when Redis is unavailable.
+- [x] Add Fastify injection tests for health, search, validation, detail lookup, missing detail, cache hits, and cache failures.
+
+Status: supported company API slice complete as of 2026-05-24. Job routes remain blocked until job domain, repository, ingestion, and service layers exist.
 
 ### Phase 6: Testing
 

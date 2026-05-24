@@ -12,7 +12,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "@yc-intelligence/core": "workspace:*",
-    "fastify": "^5.3.3"
+    "fastify": "^5.3.3",
+    "redis": "^5.12.1"
   }
 }
