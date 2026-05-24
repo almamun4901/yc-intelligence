@@ -1,4 +1,5 @@
 export * from './company'
 export * from './founder'
+export * from './hnPost'
 export * from './job'
 export * from './memory'

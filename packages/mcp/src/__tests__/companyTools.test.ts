@@ -79,7 +79,8 @@ describe('company MCP tools', () => {
           schools: [],
           createdAt: new Date('2026-05-23T00:00:00.000Z')
         }
-      ]
+      ],
+      hnPosts: []
     }
     const service = {
       searchCompanies: async () => ({ data: [], total: 0 }),
@@ -99,6 +100,7 @@ describe('company MCP tools', () => {
         schools: []
       }
     ])
+    expect(payload.company.hnPosts).toEqual([])
   })
 })
 

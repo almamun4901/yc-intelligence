@@ -5,6 +5,7 @@ import {
   JobService,
   PrismaCompanyRepository,
   PrismaFounderRepository,
+  PrismaHNPostRepository,
   PrismaJobRepository,
   config,
   createLogger
@@ -51,9 +52,11 @@ export const buildServer = (options: ServerOptions = {}) => {
 
 export const createProductionServer = () => {
   const prisma = new PrismaClient()
+  const hnPostRepository = new PrismaHNPostRepository(prisma)
   const companyService = new CompanyService(
     new PrismaCompanyRepository(prisma),
-    new PrismaFounderRepository(prisma)
+    new PrismaFounderRepository(prisma),
+    hnPostRepository
   )
   const jobService = new JobService(new PrismaJobRepository(prisma))
   const logger = createLogger('api')
