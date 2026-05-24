@@ -2,16 +2,20 @@ import Fastify from 'fastify'
 import { PrismaClient } from '@prisma/client'
 import {
   CompanyService,
+  JobService,
   PrismaCompanyRepository,
   PrismaFounderRepository,
+  PrismaJobRepository,
   config,
   createLogger
 } from '@yc-intelligence/core'
 import { createRedisResponseCache, type ApiLogger, type ResponseCache } from './cache'
 import { registerCompanyRoutes, type CompanyApiService } from './routes/companies'
+import { registerJobRoutes, type JobApiService } from './routes/jobs'
 
 interface ServerOptions {
   companyService?: CompanyApiService
+  jobService?: JobApiService
   cache?: ResponseCache
   logger?: ApiLogger
 }
@@ -30,6 +34,12 @@ export const buildServer = (options: ServerOptions = {}) => {
     })
   }
 
+  if (options.jobService) {
+    registerJobRoutes(app, {
+      jobService: options.jobService
+    })
+  }
+
   if (options.cache) {
     app.addHook('onClose', async () => {
       await options.cache?.close()
@@ -45,9 +55,10 @@ export const createProductionServer = () => {
     new PrismaCompanyRepository(prisma),
     new PrismaFounderRepository(prisma)
   )
+  const jobService = new JobService(new PrismaJobRepository(prisma))
   const logger = createLogger('api')
   const cache = createRedisResponseCache(config.REDIS_URL, logger)
-  const app = buildServer({ companyService, cache, logger })
+  const app = buildServer({ companyService, jobService, cache, logger })
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect()
