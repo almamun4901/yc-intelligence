@@ -25,7 +25,7 @@ export function createHttpClient(baseURL?: string, retryConfig: RetryConfig = {}
 
   client.interceptors.request.use(async (request) => {
     if (delayMs > 0) await sleep(delayMs)
-    logger.info({ url: request.url, method: request.method }, 'HTTP request')
+    logger.debug({ url: request.url, method: request.method }, 'HTTP request')
     return request
   })
 

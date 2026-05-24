@@ -1,4 +1,4 @@
-import type { AxiosInstance } from 'axios'
+import axios, { type AxiosInstance } from 'axios'
 import { config } from '../../lib/config'
 import { createHttpClient } from '../../lib/httpClient'
 import { createLogger } from '../../lib/logger'
@@ -12,6 +12,12 @@ export interface JobBoardFetchResult {
   processed: number
   jobsFound: number
   errors: number
+}
+
+interface JobBoardFetcherOptions {
+  client?: AxiosInstance
+  maxCompanies?: number
+  progressInterval?: number
 }
 
 type JobInput = Omit<Job, 'id' | 'fetchedAt'>
@@ -55,7 +61,7 @@ export class JobBoardFetcher {
   constructor(
     private readonly companyRepo: ICompanyRepository,
     private readonly jobRepo: IJobRepository,
-    options: { client?: AxiosInstance } = {}
+    private readonly options: JobBoardFetcherOptions = {}
   ) {
     this.client = options.client ?? createHttpClient(undefined, { delayMs: 300 })
   }
@@ -63,9 +69,12 @@ export class JobBoardFetcher {
   async run(): Promise<JobBoardFetchResult> {
     const { data: companies } = await this.companyRepo.search({
       status: 'Active',
-      limit: 10000
+      limit: this.options.maxCompanies ?? 10000
     })
     const result: JobBoardFetchResult = { processed: 0, jobsFound: 0, errors: 0 }
+    const progressInterval = this.options.progressInterval ?? 100
+
+    logger.info({ totalCompanies: companies.length }, 'Starting job board fetch')
 
     for (const batch of chunk(companies, config.PIPELINE_CONCURRENCY)) {
       const settled = await Promise.allSettled(
@@ -80,6 +89,9 @@ export class JobBoardFetcher {
             result.jobsFound += jobs.length
           }
           result.processed += 1
+          if (progressInterval > 0 && result.processed % progressInterval === 0) {
+            logger.info(result, 'Job board fetch progress')
+          }
         })
       )
 
@@ -98,7 +110,14 @@ export class JobBoardFetcher {
         const jobs = await fetcher.call(this, slug, company.id)
         if (jobs.length > 0) return jobs
       } catch (error) {
-        logger.warn({ company: company.slug, error }, 'ATS fetch failed; trying next source')
+        const status = axios.isAxiosError(error) ? error.response?.status : undefined
+        const url = axios.isAxiosError(error) ? error.config?.url : undefined
+        const logPayload = { company: company.slug, status, url }
+        if (status === 401 || status === 404) {
+          logger.debug(logPayload, 'ATS board unavailable; trying next source')
+        } else {
+          logger.warn({ ...logPayload, error }, 'ATS fetch failed; trying next source')
+        }
       }
     }
 
