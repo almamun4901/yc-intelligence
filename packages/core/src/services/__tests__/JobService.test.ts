@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Job, JobSearchParams } from '../../domain'
-import type { IJobRepository, UpsertJobInput } from '../../repositories'
+import type { IJobRepository } from '../../repositories'
 import { JobService } from '../JobService'
 
 describe('JobService', () => {
@@ -58,7 +58,7 @@ class InMemoryJobRepository implements IJobRepository {
     return { data: [], total: 0 }
   }
 
-  async upsertMany(_jobs: UpsertJobInput[]): Promise<number> {
+  async upsertMany(): Promise<number> {
     return 0
   }
 

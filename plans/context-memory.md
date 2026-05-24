@@ -27,7 +27,8 @@ This file is the working implementation memory for the repo. Update it as phases
 - Phase 2 has been started with the YC company fetch slice. Company rows can be populated from the live YC companies list endpoint; the current endpoint does not include founder data, so `Founder` remains schema/repository-ready but unpopulated by the current fetch path.
 - Phase 3/4 company query vertical slice is implemented. Core now exposes `CompanyService`; MCP now registers `search_companies` and `get_company_detail` over that service.
 - Phase 5 REST company API slice is implemented. API now exposes `/health`, `/companies`, and `/companies/:slug` over `CompanyService`, with Redis-backed best-effort caching for successful company GET responses.
-- Next implementation work should continue with job/tech-stack ingestion, job service/routes, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
+- Job search foundation is implemented. Core now has `Job`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
+- Next implementation work should continue with live job ingestion smoke testing, richer company detail aggregation, HN ingestion, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -67,8 +68,8 @@ Status: complete as of 2026-05-23. This was the first implementation phase start
 
 - [x] Add HTTP client with retry/rate limiting.
 - [x] Add YC fetcher and transformer.
-- [ ] Add job board fetcher.
-- [ ] Add tech stack extractor.
+- [x] Add job board fetcher.
+- [x] Add tech stack extractor.
 - [ ] Add HN fetcher.
 - [ ] Add GitHub fetcher.
 - [ ] Add pipeline orchestrator, CLI, and scheduler.
@@ -112,7 +113,8 @@ Full `pipeline:companies` live ingestion and opt-in Prisma integration tests wer
 
 - [x] Add project memory service.
 - [x] Add company service.
-- [ ] Add job, founder, HN, and embedding services.
+- [x] Add job service.
+- [ ] Add founder, HN, and embedding services.
 - [x] Keep business logic out of adapters.
 
 ### Phase 4: MCP Package
@@ -120,7 +122,7 @@ Full `pipeline:companies` live ingestion and opt-in Prisma integration tests wer
 - [x] Scaffold MCP server.
 - [x] Register `search_companies`.
 - [x] Register `get_company_detail`.
-- [ ] Register `search_jobs`.
+- [x] Register `search_jobs`.
 - [ ] Register `search_founders`.
 - [ ] Register `get_hn_activity`.
 - [ ] Register `semantic_search`.
@@ -150,7 +152,7 @@ Implementation note: MCP SDK and Prisma runtime classes are loaded dynamically i
 
 - [x] Scaffold Fastify server and `/health`.
 - [x] Add company routes.
-- [ ] Add job routes.
+- [x] Add job routes.
 - [x] Add Redis caching middleware for company GET routes.
 
 #### Phase 5 REST Company API Slice
@@ -162,7 +164,20 @@ Implementation note: MCP SDK and Prisma runtime classes are loaded dynamically i
 - [x] Add best-effort Redis response caching for successful company GET responses, with uncached fallback when Redis is unavailable.
 - [x] Add Fastify injection tests for health, search, validation, detail lookup, missing detail, cache hits, and cache failures.
 
-Status: supported company API slice complete as of 2026-05-24. Job routes remain blocked until job domain, repository, ingestion, and service layers exist.
+Status: REST API company and job search slices complete as of 2026-05-24.
+
+#### Job Search Foundation Slice
+
+- [x] Add `Job` domain type, `JobSearchParams`, Prisma `Job` model, and job migration.
+- [x] Add `IJobRepository` and `PrismaJobRepository` with search, upsert, and inactive-marking behavior.
+- [x] Add `JobService` with normalized active-by-default search.
+- [x] Add `extractTechStack` with alias normalization for job descriptions.
+- [x] Add `JobBoardFetcher` for Greenhouse, Lever, and Ashby, plus `pipeline:jobs`.
+- [x] Add `GET /jobs` REST route.
+- [x] Add MCP `search_jobs` tool.
+- [x] Add unit tests and opt-in Prisma repository integration coverage.
+
+Status: implementation complete as of 2026-05-24. Live `pipeline:jobs` ingestion has not been run against the full local company database in this slice; do that before using job search as production-quality data.
 
 ### Phase 6: Testing
 

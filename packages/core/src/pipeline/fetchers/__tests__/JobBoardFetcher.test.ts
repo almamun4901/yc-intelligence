@@ -1,6 +1,6 @@
 import type { AxiosInstance } from 'axios'
 import { describe, expect, it } from 'vitest'
-import type { Company, JobSearchParams } from '../../../domain'
+import type { Company } from '../../../domain'
 import type { ICompanyRepository, IJobRepository, UpsertCompanyInput, UpsertJobInput } from '../../../repositories'
 import { JobBoardFetcher } from '../JobBoardFetcher'
 
@@ -141,7 +141,7 @@ class InMemoryJobRepository implements IJobRepository {
     return []
   }
 
-  async search(_params: JobSearchParams) {
+  async search() {
     return { data: [], total: 0 }
   }
 
