@@ -25,7 +25,8 @@ This file is the working implementation memory for the repo. Update it as phases
 - `MemoryEntry` is exclusively for project-level decisions, notes, and research provenance.
 - YC company intelligence data belongs in dedicated `Company`, `Founder`, `Job`, `HNPost`, and related models.
 - Phase 2 has been started with the YC company fetch slice. Company rows can be populated from the live YC companies list endpoint; the current endpoint does not include founder data, so `Founder` remains schema/repository-ready but unpopulated by the current fetch path.
-- Next implementation work should continue with either company query/service work or the job/tech-stack slice, while preserving the project-memory boundary established in Phase 1.
+- Phase 3/4 company query vertical slice is implemented. Core now exposes `CompanyService`; MCP now registers `search_companies` and `get_company_detail` over that service.
+- Next implementation work should continue with either REST company routes, job/tech-stack ingestion, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -109,19 +110,40 @@ Full `pipeline:companies` live ingestion and opt-in Prisma integration tests wer
 ### Phase 3: Service Layer
 
 - [x] Add project memory service.
-- [ ] Add company, job, founder, HN, and embedding services.
+- [x] Add company service.
+- [ ] Add job, founder, HN, and embedding services.
 - [x] Keep business logic out of adapters.
 
 ### Phase 4: MCP Package
 
-- [ ] Scaffold MCP server.
-- [ ] Register `search_companies`.
-- [ ] Register `get_company_detail`.
+- [x] Scaffold MCP server.
+- [x] Register `search_companies`.
+- [x] Register `get_company_detail`.
 - [ ] Register `search_jobs`.
 - [ ] Register `search_founders`.
 - [ ] Register `get_hn_activity`.
 - [ ] Register `semantic_search`.
 - [ ] Register future memory tools such as `add_memory`, `search_memory`, and `supersede_memory`.
+
+#### Phase 3/4 Company Query Vertical Slice
+
+- [x] Add `CompanyService` with normalized search defaults and slug-based detail lookup.
+- [x] Include founders in company detail responses when founder rows exist.
+- [x] Export company service from core.
+- [x] Wire MCP stdio server composition root over Prisma-backed repositories.
+- [x] Add MCP `search_companies` and `get_company_detail` tools.
+- [x] Add core service tests and lightweight MCP handler/schema tests.
+
+Status: complete as of 2026-05-23. Verification passed with:
+
+- `pnpm --filter @yc-intelligence/core typecheck`
+- `pnpm --filter @yc-intelligence/core test`
+- `pnpm --filter @yc-intelligence/mcp typecheck`
+- `pnpm --filter @yc-intelligence/mcp build`
+- `pnpm typecheck`
+- `pnpm test`
+
+Implementation note: MCP SDK and Prisma runtime classes are loaded dynamically in the MCP composition root to keep TypeScript declaration checking tractable under the current CommonJS package setup. Business logic still lives in core, and MCP handlers remain thin service adapters.
 
 ### Phase 5: REST API Package
 

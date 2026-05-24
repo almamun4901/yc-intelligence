@@ -15,7 +15,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@prisma/client": "^6.8.2",
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "@yc-intelligence/core": "workspace:*"
+    "@yc-intelligence/core": "workspace:*",
+    "zod": "^3.25.20"
   }
 }
