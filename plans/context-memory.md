@@ -27,8 +27,8 @@ This file is the working implementation memory for the repo. Update it as phases
 - Phase 2 has been started with the YC company fetch slice. Company rows can be populated from the live YC companies list endpoint; the current endpoint does not include founder data, so `Founder` remains schema/repository-ready but unpopulated by the current fetch path.
 - Phase 3/4 company query vertical slice is implemented. Core now exposes `CompanyService`; MCP now registers `search_companies` and `get_company_detail` over that service.
 - Phase 5 REST company API slice is implemented. API now exposes `/health`, `/companies`, and `/companies/:slug` over `CompanyService`, with Redis-backed best-effort caching for successful company GET responses.
-- Job search foundation is implemented. Core now has `Job`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
-- Next implementation work should continue with live job ingestion smoke testing, richer company detail aggregation, HN ingestion, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
+- Job search foundation is implemented and live-smoke verified. Core now has `Job`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
+- Next implementation work should continue with richer company detail aggregation, HN ingestion, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -177,7 +177,19 @@ Status: REST API company and job search slices complete as of 2026-05-24.
 - [x] Add MCP `search_jobs` tool.
 - [x] Add unit tests and opt-in Prisma repository integration coverage.
 
-Status: implementation complete as of 2026-05-24. Live `pipeline:jobs` ingestion has not been run against the full local company database in this slice; do that before using job search as production-quality data.
+Status: implementation complete and live-smoke verified as of 2026-05-24.
+
+Live smoke verification notes:
+
+- Local Docker Postgres and Redis were healthy.
+- Local database had 5,930 companies before job smoke verification.
+- An initial unbounded `pnpm --filter @yc-intelligence/core pipeline:jobs` run was stopped with `SIGINT` after roughly 21 minutes because expected missing ATS boards produced excessive info/warn logging and made the run hard to monitor.
+- The smoke run still populated the local database to 6,147 active jobs: 4,963 Greenhouse jobs and 1,184 Lever jobs. No Ashby jobs were present in the resulting corpus.
+- `JobBoardFetcher` now logs expected ATS 401/404 board misses at debug level, HTTP request logs are debug-level, and the fetcher logs start/progress/summary at info level.
+- `JOB_PIPELINE_LIMIT=50 pnpm --filter @yc-intelligence/core pipeline:jobs` completed successfully with `{"processed":50,"jobsFound":0,"errors":0}` and no log flood.
+- REST `GET /jobs?limit=3` returned HTTP 200 with `total: 6147`.
+- MCP `search_jobs` over Prisma-backed `JobService` returned `total: 6147`.
+- Full unbounded ingestion should be rerun after adding stronger progress/resume controls or a known ATS slug mapping layer; job search is usable against the current local corpus, but full-refresh runtime remains a pipeline scalability concern.
 
 ### Phase 6: Testing
 

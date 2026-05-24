@@ -24,7 +24,9 @@ async function main() {
             new PrismaFounderRepository(prisma),
             new PrismaRefreshLogRepository(prisma)
           ).run()
-        : await new JobBoardFetcher(companyRepo, new PrismaJobRepository(prisma)).run()
+        : await new JobBoardFetcher(companyRepo, new PrismaJobRepository(prisma), {
+            maxCompanies: parsePositiveInteger(process.env.JOB_PIPELINE_LIMIT)
+          }).run()
 
     process.stdout.write(`YC ${command} pipeline complete: ${JSON.stringify(result)}\n`)
   } finally {
@@ -34,6 +36,12 @@ async function main() {
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
-  process.stderr.write(`YC companies pipeline failed: ${message}\n`)
+  process.stderr.write(`YC pipeline failed: ${message}\n`)
   process.exit(1)
 })
+
+function parsePositiveInteger(value: string | undefined): number | undefined {
+  if (!value) return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
