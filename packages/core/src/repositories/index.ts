@@ -1,4 +1,5 @@
 export * from './ICompanyRepository'
 export * from './IFounderRepository'
+export * from './IJobRepository'
 export * from './IMemoryRepository'
 export * from './IRefreshLogRepository'
