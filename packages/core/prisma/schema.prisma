@@ -69,6 +69,7 @@ model Company {
   founders Founder[]
   jobs     Job[]
   hnPosts  HNPost[]
+  embedding CompanyEmbedding?
   hnSyncState CompanyHNSyncState?
 
   @@index([slug])
@@ -77,6 +78,24 @@ model Company {
   @@index([isHiring])
   @@index([tags], type: Gin)
   @@map("companies")
+}
+
+model CompanyEmbedding {
+  id             String   @id @default(uuid())
+  companyId      String   @unique
+  sourceText     String
+  sourceHash     String
+  embeddingModel String
+  embedding      Unsupported("vector(1536)")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([sourceHash])
+  @@index([embeddingModel])
+  @@map("company_embeddings")
 }
 
 model HNPost {

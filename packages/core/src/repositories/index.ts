@@ -1,4 +1,5 @@
 export * from './ICompanyRepository'
+export * from './ICompanyEmbeddingRepository'
 export * from './IFounderRepository'
 export * from './IHNPostRepository'
 export * from './IJobRepository'

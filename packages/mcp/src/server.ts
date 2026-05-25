@@ -1,6 +1,7 @@
 import { registerCompanyTools, type CompanyToolService, type ToolServer } from './companyTools'
 import { registerHNTools, type HNToolService } from './hnTools'
 import { registerJobTools, type JobToolService } from './jobTools'
+import { registerSemanticTools, type SemanticToolService } from './semanticTools'
 
 interface RuntimeMcpServer extends ToolServer {
   connect(transport: unknown): Promise<void>
@@ -26,6 +27,9 @@ const { PrismaClient } = require('@prisma/client') as {
 }
 const {
   CompanyService,
+  EmbeddingService,
+  OpenAIEmbeddingProvider,
+  PrismaCompanyEmbeddingRepository,
   HNService,
   JobService,
   PrismaCompanyRepository,
@@ -40,6 +44,15 @@ const {
     founderRepository: unknown,
     hnPostRepository?: unknown
   ) => CompanyToolService
+  EmbeddingService: new (
+    companyRepository: unknown,
+    embeddingRepository: unknown,
+    embeddingProvider: unknown,
+    jobRepository?: unknown,
+    hnPostRepository?: unknown
+  ) => SemanticToolService
+  OpenAIEmbeddingProvider: new () => unknown
+  PrismaCompanyEmbeddingRepository: new (prisma: PrismaRuntime) => unknown
   HNService: new (hnPostRepository: unknown) => HNToolService
   JobService: new (jobRepository: unknown) => JobToolService
   PrismaCompanyRepository: new (prisma: PrismaRuntime) => unknown
@@ -52,7 +65,8 @@ const {
 export const createYcIntelligenceMcpServer = (
   companyService: CompanyToolService,
   jobService?: JobToolService,
-  hnService?: HNToolService
+  hnService?: HNToolService,
+  semanticService?: SemanticToolService
 ): RuntimeMcpServer => {
   const server = new McpServer({
     name: 'yc-intelligence',
@@ -62,6 +76,7 @@ export const createYcIntelligenceMcpServer = (
   registerCompanyTools(server, companyService)
   if (jobService) registerJobTools(server, jobService)
   if (hnService) registerHNTools(server, hnService)
+  if (semanticService) registerSemanticTools(server, semanticService)
 
   return server
 }
@@ -76,9 +91,16 @@ export const createProductionMcpServer = (): { server: RuntimeMcpServer; close: 
   )
   const jobService = new JobService(new PrismaJobRepository(prisma))
   const hnService = new HNService(hnPostRepository)
+  const semanticService = new EmbeddingService(
+    new PrismaCompanyRepository(prisma),
+    new PrismaCompanyEmbeddingRepository(prisma),
+    new OpenAIEmbeddingProvider(),
+    new PrismaJobRepository(prisma),
+    hnPostRepository
+  )
 
   return {
-    server: createYcIntelligenceMcpServer(companyService, jobService, hnService),
+    server: createYcIntelligenceMcpServer(companyService, jobService, hnService, semanticService),
     close: async () => {
       await prisma.$disconnect()
     }
