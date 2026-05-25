@@ -3,7 +3,7 @@ import { dirname, join } from 'path'
 import dotenv from 'dotenv'
 import { z } from 'zod'
 
-dotenv.config({ path: findEnvPath(process.cwd()), override: true })
+loadDotEnv(findEnvPath(process.cwd()))
 
 const ConfigSchema = z.object({
   DATABASE_URL: z.string().url().default('postgresql://yc_user:yc_password@localhost:5433/yc_intelligence'),
@@ -41,5 +41,15 @@ function findEnvPath(startDir: string): string {
     const parentDir = dirname(currentDir)
     if (parentDir === currentDir) return envPathMatch ?? join(startDir, '.env')
     currentDir = parentDir
+  }
+}
+
+function loadDotEnv(path: string): void {
+  const parsed = dotenv.config({ path, processEnv: {} }).parsed ?? {}
+
+  for (const [key, value] of Object.entries(parsed)) {
+    if (process.env[key] === undefined || process.env[key] === '') {
+      process.env[key] = value
+    }
   }
 }

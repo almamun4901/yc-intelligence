@@ -16,6 +16,7 @@ import type {
 } from '../repositories'
 
 const DEFAULT_REFRESH_LIMIT = 100
+const DEFAULT_REFRESH_BATCH_SIZE = 16
 const DEFAULT_SEARCH_LIMIT = 10
 const MAX_SEARCH_LIMIT = 50
 
@@ -24,6 +25,7 @@ export interface EmbeddingRefreshOptions {
   offset?: number
   status?: CompanySearchParams['status']
   staleOnly?: boolean
+  batchSize?: number
 }
 
 export interface EmbeddingRefreshResult {
@@ -49,6 +51,8 @@ export class EmbeddingService {
     })
     const result: EmbeddingRefreshResult = { processed: 0, generated: 0, skipped: 0 }
 
+    const pending: Array<{ company: Company; sourceText: string; sourceHash: string }> = []
+
     for (const company of companies.data) {
       result.processed += 1
       const sourceText = await this.buildSourceText(company)
@@ -65,15 +69,27 @@ export class EmbeddingService {
         continue
       }
 
-      const embedding = await this.embeddingProvider.embed(sourceText)
-      await this.embeddingRepository.upsert({
-        companyId: company.id,
-        sourceText,
-        sourceHash,
-        embeddingModel: this.embeddingProvider.model,
-        embedding
-      })
-      result.generated += 1
+      pending.push({ company, sourceText, sourceHash })
+    }
+
+    const batchSize = Math.max(options.batchSize ?? DEFAULT_REFRESH_BATCH_SIZE, 1)
+    for (let start = 0; start < pending.length; start += batchSize) {
+      const batch = pending.slice(start, start + batchSize)
+      const embeddings = await this.embedMany(batch.map((item) => item.sourceText))
+
+      for (const [index, item] of batch.entries()) {
+        const embedding = embeddings[index]
+        if (!embedding) throw new Error(`Embedding provider returned no vector for company ${item.company.id}`)
+
+        await this.embeddingRepository.upsert({
+          companyId: item.company.id,
+          sourceText: item.sourceText,
+          sourceHash: item.sourceHash,
+          embeddingModel: this.embeddingProvider.model,
+          embedding
+        })
+        result.generated += 1
+      }
     }
 
     return result
@@ -112,6 +128,12 @@ export class EmbeddingService {
         })
       )?.data ?? []
     )
+  }
+
+  private async embedMany(texts: string[]): Promise<number[][]> {
+    return this.embeddingProvider.embedMany
+      ? this.embeddingProvider.embedMany(texts)
+      : Promise.all(texts.map((text) => this.embeddingProvider.embed(text)))
   }
 
   private normalizeSearchParams(params: SemanticCompanySearchParams): SemanticCompanySearchParams {
