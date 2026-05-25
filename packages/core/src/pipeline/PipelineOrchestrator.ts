@@ -1,4 +1,5 @@
 import { createLogger } from '../lib/logger'
+import type { CompanyStatus } from '../domain'
 import type { EmbeddingRefreshOptions, EmbeddingRefreshResult } from '../services'
 import type { HNFetchResult, HNFetcherOptions, JobBoardFetchResult, YCFetchResult } from './fetchers'
 
@@ -46,7 +47,9 @@ export interface PipelineRuntimeOptions {
   hnMaxPagesPerCompany?: number
   embeddingLimit?: number
   embeddingOffset?: number
+  embeddingStatus?: CompanyStatus
   embeddingStaleOnly?: boolean
+  embeddingBatchSize?: number
 }
 
 export class PipelineOrchestrator {
@@ -76,7 +79,7 @@ export class PipelineOrchestrator {
         results.push({ stage, result } as PipelineStageResult)
         logger.info({ mode, stage, durationMs: Date.now() - stageStartedAt.getTime(), result }, 'Pipeline stage complete')
       } catch (error) {
-        logger.error({ mode, stage, error }, 'Pipeline stage failed')
+        logger.error({ mode, stage, error: serializeError(error) }, 'Pipeline stage failed')
         throw error
       }
     }
@@ -142,13 +145,17 @@ export const createPipelineRuntimeOptions = (env: NodeJS.ProcessEnv = process.en
   hnMaxPagesPerCompany: parsePositiveInteger(env.HN_MAX_PAGES_PER_COMPANY),
   embeddingLimit: parsePositiveInteger(env.EMBEDDING_PIPELINE_LIMIT),
   embeddingOffset: parsePositiveInteger(env.EMBEDDING_PIPELINE_OFFSET),
-  embeddingStaleOnly: env.EMBEDDING_PIPELINE_STALE_ONLY === '1'
+  embeddingStatus: parseCompanyStatus(env.EMBEDDING_PIPELINE_STATUS),
+  embeddingStaleOnly: env.EMBEDDING_PIPELINE_STALE_ONLY === '1',
+  embeddingBatchSize: parsePositiveInteger(env.EMBEDDING_PIPELINE_BATCH_SIZE)
 })
 
 export const createEmbeddingRefreshOptions = (options: PipelineRuntimeOptions): EmbeddingRefreshOptions => ({
   limit: options.embeddingLimit,
   offset: options.embeddingOffset,
-  staleOnly: options.embeddingStaleOnly
+  status: options.embeddingStatus,
+  staleOnly: options.embeddingStaleOnly,
+  batchSize: options.embeddingBatchSize
 })
 
 export const createHNFetcherOptions = (options: PipelineRuntimeOptions): HNFetcherOptions => ({
@@ -174,7 +181,27 @@ const parseNonNegativeInteger = (value: string | undefined): number | undefined 
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
 }
 
+const parseCompanyStatus = (value: string | undefined): CompanyStatus | undefined => {
+  if (!value) return undefined
+  if (value === 'Active' || value === 'Acquired' || value === 'Inactive' || value === 'Dead') return value
+  throw new Error('EMBEDDING_PIPELINE_STATUS must be one of Active, Acquired, Inactive, Dead')
+}
+
 const dedupeStages = (stages: PipelineStage[]): PipelineStage[] => [...new Set(stages)]
 
 const isPipelineStage = (value: string): value is PipelineStage =>
   PIPELINE_STAGES.includes(value as PipelineStage)
+
+const serializeError = (error: unknown): { name?: string; message: string; status?: number; code?: string } => {
+  if (error instanceof Error) {
+    const maybeAxiosError = error as Error & { response?: { status?: number }; code?: string }
+    return {
+      name: error.name,
+      message: error.message,
+      ...(maybeAxiosError.response?.status ? { status: maybeAxiosError.response.status } : {}),
+      ...(maybeAxiosError.code ? { code: maybeAxiosError.code } : {})
+    }
+  }
+
+  return { message: String(error) }
+}

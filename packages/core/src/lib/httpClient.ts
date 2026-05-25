@@ -46,7 +46,10 @@ export function createHttpClient(baseURL?: string, retryConfig: RetryConfig = {}
       if (!shouldRetry) throw error
 
       requestConfig._retryCount += 1
-      const waitMs = delayMs * Math.pow(backoffFactor, requestConfig._retryCount)
+      const waitMs = Math.max(
+        parseRetryAfterMs(error.response?.headers?.['retry-after']),
+        delayMs * Math.pow(backoffFactor, requestConfig._retryCount)
+      )
 
       logger.warn(
         { url: requestConfig.url, status, attempt: requestConfig._retryCount },
@@ -62,3 +65,13 @@ export function createHttpClient(baseURL?: string, retryConfig: RetryConfig = {}
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const parseRetryAfterMs = (value: unknown): number => {
+  if (typeof value !== 'string') return 0
+
+  const seconds = Number.parseInt(value, 10)
+  if (Number.isInteger(seconds) && seconds > 0) return seconds * 1000
+
+  const dateMs = Date.parse(value)
+  return Number.isNaN(dateMs) ? 0 : Math.max(dateMs - Date.now(), 0)
+}

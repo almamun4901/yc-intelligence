@@ -92,6 +92,8 @@ describe('pipeline option parsing', () => {
         HN_MAX_PAGES_PER_COMPANY: '2',
         EMBEDDING_PIPELINE_LIMIT: '30',
         EMBEDDING_PIPELINE_OFFSET: '40',
+        EMBEDDING_PIPELINE_STATUS: 'Active',
+        EMBEDDING_PIPELINE_BATCH_SIZE: '8',
         EMBEDDING_PIPELINE_STALE_ONLY: '1'
       })
     ).toEqual({
@@ -102,6 +104,8 @@ describe('pipeline option parsing', () => {
       hnMaxPagesPerCompany: 2,
       embeddingLimit: 30,
       embeddingOffset: 40,
+      embeddingStatus: 'Active',
+      embeddingBatchSize: 8,
       embeddingStaleOnly: true
     })
   })
