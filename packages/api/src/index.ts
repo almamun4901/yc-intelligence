@@ -4,12 +4,12 @@ import {
   CompanyService,
   EmbeddingService,
   JobService,
-  OpenAIEmbeddingProvider,
   PrismaCompanyEmbeddingRepository,
   PrismaCompanyRepository,
   PrismaFounderRepository,
   PrismaHNPostRepository,
   PrismaJobRepository,
+  VoyageEmbeddingProvider,
   config,
   createLogger
 } from '@yc-intelligence/core'
@@ -73,7 +73,7 @@ export const createProductionServer = () => {
   const semanticSearchService = new EmbeddingService(
     new PrismaCompanyRepository(prisma),
     new PrismaCompanyEmbeddingRepository(prisma),
-    new OpenAIEmbeddingProvider(),
+    new VoyageEmbeddingProvider(),
     new PrismaJobRepository(prisma),
     hnPostRepository
   )

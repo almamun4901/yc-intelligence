@@ -307,7 +307,7 @@ Base URL: https://api.crunchbase.com/api/v4/entities/organizations/{slug}
 | HTTP Client | Axios | Simple, reliable |
 | Scraping Fallback | Playwright | For job pages not on standard ATS |
 | Scheduler | node-cron | Nightly data refresh |
-| Embeddings | OpenAI `text-embedding-3-small` | Cheap, fast, good quality |
+| Embeddings | Voyage `voyage-3.5` | Anthropic-recommended embedding provider, fast, good quality |
 | Env Management | dotenv | Standard |
 | Testing | Vitest | Fast, TS-native |
 | Linting | ESLint + Prettier | Code quality |
@@ -383,7 +383,8 @@ yc-intelligence-mcp/
 # .env.example
 DATABASE_URL="postgresql://localhost:5432/yc_intelligence"
 GITHUB_TOKEN="ghp_..."
-OPENAI_API_KEY="sk-..."          # For embeddings
+ANTHROPIC_API_KEY="sk-ant-..."   # For future Claude enrichment
+VOYAGE_API_KEY="pa-..."          # For embeddings
 CRUNCHBASE_API_KEY=""            # Optional, V1.1
 ```
 
@@ -412,7 +413,7 @@ Models to create:
   - Funding      (id, companyId, amount, round, date, source)
   - GitHubOrg    (id, companyId, orgName, stars, languages[], 
                   lastCommit, contributorCount)
-  - CompanyEmbed (id, companyId, embedding Unsupported("vector(1536)"))
+  - CompanyEmbed (id, companyId, embedding Unsupported("vector(1024)"))
 ```
 
 Run: `npx prisma migrate dev --name init`
@@ -560,8 +561,8 @@ File: `src/db/embed.ts`
 ```
 For each company:
   - Combine: name + description + tags + industry + batch
-  - Call OpenAI text-embedding-3-small API
-  - Store 1536-dimensional vector in CompanyEmbed table via pgvector
+  - Call Voyage voyage-3.5 embeddings API
+  - Store 1024-dimensional vector in CompanyEmbed table via pgvector
   - Batch in groups of 100 to stay within rate limits
 ```
 
@@ -928,7 +929,7 @@ github_orgs (
 company_embeds (
   id           UUID PRIMARY KEY,
   company_id   UUID REFERENCES companies(id),
-  embedding    vector(1536)        -- pgvector
+  embedding    vector(1024)        -- pgvector
 )
 ```
 
@@ -942,7 +943,7 @@ company_embeds (
 | Job board rate limiting | Medium | Medium | Add delay between requests, cache for 12 hours |
 | GitHub org name mismatch | High | Low | Build manual mapping table for top 100 companies |
 | ATS platform not Greenhouse/Lever/Ashby | Medium | Medium | Playwright scraper as fallback for custom job pages |
-| OpenAI API cost for embeddings | Low | Low | One-time cost ~$0.50 for 4,000 companies at current pricing |
+| Voyage API cost for embeddings | Low | Low | One-time cost is expected to be small for ~4,000 company documents |
 | Stale job data | High | Medium | Mark jobs inactive after 7 days without confirmation, refresh daily |
 | LinkedIn ToS violation | High | Low | Do not scrape LinkedIn; use only data already in YC API |
 

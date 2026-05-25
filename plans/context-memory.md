@@ -30,7 +30,7 @@ This file is the working implementation memory for the repo. Update it as phases
 - Job search foundation is implemented and live-smoke verified. Core now has `Job`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
 - HN ingestion vertical slice is implemented and live-smoke verified. Core now has `HNPost`, `CompanyHNSyncState`, `IHNPostRepository`, `PrismaHNPostRepository`, `HNFetcher`, `HNService`, and `pipeline:hn`; MCP registers `get_hn_activity`; company detail includes recent/top HN posts when an HN repository is injected.
 - GitHub ingestion is intentionally deferred for now because most YC companies do not expose public repos, matching is noisy, and public GitHub signals should not be treated as canonical internal tech stack data.
-- Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, OpenAI embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
+- Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, Voyage embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
 - Next implementation work should continue with semantic search/embeddings, richer company detail aggregation, pipeline orchestrator/scheduler work, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
@@ -132,7 +132,7 @@ Recommended first slice: company-level semantic search over a generated company 
 - [x] Add Prisma schema/migration for company embeddings using `pgvector`, including company relation, source text hash, embedding model name, embedding vector, and timestamps.
 - [x] Add repository interface and Prisma implementation for upserting embeddings, finding current company embeddings, and vector similarity search with optional structured filters.
 - [x] Add search-document builder that creates concise, deterministic text from company name, batch, tags, descriptions, location, hiring flag, recent job titles/tech stacks, and recent HN titles.
-- [x] Add embedding provider wrapper around OpenAI embeddings using `OPENAI_API_KEY` and `text-embedding-3-small`.
+- [x] Add embedding provider wrapper around Voyage embeddings using `VOYAGE_API_KEY` and `voyage-3.5`.
 - [x] Add `EmbeddingService` to generate/update company embeddings idempotently, skip unchanged documents by hash, and run in limited batches.
 - [x] Add `pipeline:embeddings` CLI command with environment knobs for limit, offset, and stale-only mode.
 - [x] Add semantic search service method that embeds the user query, runs vector search, returns ranked company summaries with similarity scores, and preserves exact filters for `batch`, `status`, `industry`, `isHiring`, `limit`, and `offset`.
@@ -140,7 +140,7 @@ Recommended first slice: company-level semantic search over a generated company 
 - [x] Add REST `GET /search/semantic`.
 - [x] Add unit tests for document construction, stale detection/hash behavior, search parameter normalization, and MCP schema/handler behavior.
 - [x] Add opt-in Prisma integration coverage for vector storage/search once the migration exists.
-- [ ] Live-smoke verify against local Postgres with a small company batch, then record the verification commands and results here.
+- [x] Live-smoke verify against local Postgres with a small company batch, then record the verification commands and results here.
 
 Status: company-level semantic search vertical slice implemented as of 2026-05-24. Verification passed with:
 
@@ -165,6 +165,18 @@ Status: company-level semantic search vertical slice implemented as of 2026-05-2
 - `pnpm build`
 - `pnpm lint`
 
+Semantic smoke follow-up on 2026-05-24:
+
+- Added `pnpm --filter @yc-intelligence/core smoke:semantic` as a one-command live smoke path for semantic search. It refreshes a small embedding batch with the production `EmbeddingService`, then runs a semantic query through the same service against local Postgres/pgvector.
+- `docker compose ps` confirmed local Postgres and Redis were healthy.
+- `pnpm --filter @yc-intelligence/core exec prisma migrate status` confirmed all 5 migrations were applied.
+- Local database baseline before the smoke attempt was 5,942 companies and 6 company embeddings.
+- `EMBEDDING_PIPELINE_LIMIT=5 pnpm --filter @yc-intelligence/core pipeline:embeddings` reached the previous embeddings API path but failed with HTTP 401.
+- `pnpm --filter @yc-intelligence/core smoke:semantic` also reached the live embeddings path and failed clearly because the embeddings key was invalid.
+- The semantic live smoke remains blocked on a valid `VOYAGE_API_KEY`; after updating `.env`, rerun `pnpm --filter @yc-intelligence/core build`, `pnpm --filter @yc-intelligence/core exec prisma migrate deploy`, and `pnpm --filter @yc-intelligence/core smoke:semantic`, then mark the live-smoke checklist item complete if it returns `ok: true`.
+- On 2026-05-25 the embedding provider was switched from the previous provider to Voyage because the project will use Anthropic for Claude features and Anthropic does not provide a native embeddings model. A migration clears incompatible existing embeddings and changes `company_embeddings.embedding` to `vector(1024)` for `voyage-3.5`.
+- Semantic smoke passed on 2026-05-25 after adding a valid `VOYAGE_API_KEY` and syncing the package-level `.env`. `SEMANTIC_SMOKE_LIMIT=1 pnpm --filter @yc-intelligence/core smoke:semantic` returned `ok: true` for query `AI infrastructure for developers`, with `refresh: {"processed":1,"generated":0,"skipped":1}` and `search: {"total":3,"count":3}`. Local Postgres contained 3 `company_embeddings` rows after the smoke.
+
 Brutal testing follow-up on 2026-05-24:
 
 - `docker compose ps` confirmed local Postgres and Redis were healthy.
@@ -173,7 +185,7 @@ Brutal testing follow-up on 2026-05-24:
 - `PrismaCompanyEmbeddingRepository.test.ts` and `PrismaJobRepository.test.ts` now use unique batch/tag values per run, and the DB integration suite passes repeatedly.
 - Final verification after the fix passed with `RUN_DB_TESTS=1 pnpm --filter @yc-intelligence/core test`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm lint`.
 
-Implementation note: `PrismaCompanyEmbeddingRepository` uses raw SQL for `pgvector` insert/search because Prisma's normal model CRUD does not directly support vector operations. The embedding vector dimension is fixed at 1536 for `text-embedding-3-small`.
+Implementation note: `PrismaCompanyEmbeddingRepository` uses raw SQL for `pgvector` insert/search because Prisma's normal model CRUD does not directly support vector operations. The embedding vector dimension is fixed at 1024 for `voyage-3.5`.
 
 Semantic search usage notes:
 

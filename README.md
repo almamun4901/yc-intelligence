@@ -18,6 +18,6 @@ docker compose up -d
 pnpm build
 ```
 
-The `.env` file needs real `GITHUB_TOKEN` and `OPENAI_API_KEY` values before pipeline and embedding work can run.
+The `.env` file needs real `GITHUB_TOKEN` and `VOYAGE_API_KEY` values before pipeline and embedding work can run. `ANTHROPIC_API_KEY` is reserved for future Claude-powered enrichment.
 
 Postgres is exposed on host port `5433` to avoid colliding with an existing local Postgres on `5432`.

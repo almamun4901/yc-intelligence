@@ -165,7 +165,7 @@ yc-intelligence/
 | MCP SDK | `@modelcontextprotocol/sdk` | Official, required |
 | API Server | Fastify | 2x faster than Express, built-in schema validation |
 | API Validation | Zod | Runtime type safety, shared with core |
-| Embeddings | OpenAI `text-embedding-3-small` | Cheap ($0.02/1M tokens), 1536 dims |
+| Embeddings | Voyage `voyage-3.5` | Anthropic-recommended embedding provider, 1024 dims |
 | Scheduler | node-cron | Lightweight, enough for our needs |
 | Testing | Vitest | TS-native, fast, compatible with Node |
 | Test DB | Docker PostgreSQL | Isolated, reproducible, no shared state |
@@ -364,7 +364,8 @@ const ConfigSchema = z.object({
 
   // External APIs
   GITHUB_TOKEN: z.string().min(1),
-  OPENAI_API_KEY: z.string().min(1),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  VOYAGE_API_KEY: z.string().min(1),
   CRUNCHBASE_API_KEY: z.string().optional(),
 
   // Pipeline
@@ -394,7 +395,8 @@ export type Config = typeof config
 DATABASE_URL="postgresql://yc_user:yc_password@localhost:5432/yc_intelligence"
 REDIS_URL="redis://localhost:6379"
 GITHUB_TOKEN="ghp_your_token_here"
-OPENAI_API_KEY="sk-your_key_here"
+ANTHROPIC_API_KEY="sk-ant-your_key_here"
+VOYAGE_API_KEY="pa-your_key_here"
 CRUNCHBASE_API_KEY=""
 PIPELINE_CONCURRENCY=5
 PIPELINE_DELAY_MS=500
@@ -406,7 +408,7 @@ NODE_ENV=development
 ```bash
 # Test 1: Valid config loads correctly
 cp .env.example .env
-# Fill in real values for GITHUB_TOKEN and OPENAI_API_KEY
+# Fill in real values for GITHUB_TOKEN and VOYAGE_API_KEY
 node -e "require('./packages/core/dist/lib/config').config" 
 # Expected: No error, config object printed
 
@@ -769,7 +771,7 @@ model GitHubOrg {
 model CompanyEmbed {
   id         String                      @id @default(uuid())
   companyId  String                      @unique
-  embedding  Unsupported("vector(1536)")
+  embedding  Unsupported("vector(1024)")
   createdAt  DateTime                    @default(now())
   updatedAt  DateTime                    @updatedAt
 
@@ -809,7 +811,7 @@ docker exec yc_postgres psql -U yc_user -d yc_intelligence -c "\dt"
 # 3. pgvector column exists correctly
 docker exec yc_postgres psql -U yc_user -d yc_intelligence \
   -c "\d company_embeds"
-# Expected: embedding column shows type "vector(1536)"
+# Expected: embedding column shows type "vector(1024)"
 
 # 4. GIN indexes exist for array columns
 docker exec yc_postgres psql -U yc_user -d yc_intelligence \
@@ -1663,23 +1665,23 @@ pnpm vitest run src/services/__tests__/CompanyService.test.ts
 
 ### Task 3.2 — EmbeddingService
 
-**Goal:** Generate and cache vector embeddings for semantic search. Batch requests to stay within OpenAI rate limits.
+**Goal:** Generate and cache vector embeddings for semantic search. Batch requests to stay within Voyage rate limits.
 
 **Steps:**
 
 ```typescript
 // packages/core/src/services/EmbeddingService.ts
 
-import OpenAI from 'openai'
+import { VoyageEmbeddingProvider } from '../lib/embeddingProvider'
 import { createLogger } from '../lib/logger'
 import type { PrismaClient } from '@prisma/client'
 
 const logger = createLogger('EmbeddingService')
-const MODEL = 'text-embedding-3-small'
+const MODEL = 'voyage-3.5'
 const BATCH_SIZE = 100
 
 export class EmbeddingService {
-  private openai = new OpenAI({ apiKey: config.OPENAI_API_KEY })
+  private embeddingProvider = new VoyageEmbeddingProvider({ apiKey: config.VOYAGE_API_KEY })
 
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -2010,7 +2012,7 @@ const GetCompanyDetailInput = z.object({
 
 # Test 2: Fuzzy match
 { "name": "open ai" }   # Wrong casing, space vs no-space
-# Expected: Returns OpenAI profile (fuzzy match works)
+# Expected: Returns relevant company profile (fuzzy match works)
 
 # Test 3: Unknown company
 { "name": "ThisCompanyDoesNotExist123" }
@@ -2456,7 +2458,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://yc_user:yc_password@localhost:5432/yc_intelligence
           REDIS_URL: redis://localhost:6379
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 ```
 

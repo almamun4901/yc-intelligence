@@ -1,13 +1,16 @@
+import { existsSync } from 'fs'
+import { dirname, join } from 'path'
 import dotenv from 'dotenv'
 import { z } from 'zod'
 
-dotenv.config()
+dotenv.config({ path: findEnvPath(process.cwd()), override: true })
 
 const ConfigSchema = z.object({
   DATABASE_URL: z.string().url().default('postgresql://yc_user:yc_password@localhost:5433/yc_intelligence'),
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
   GITHUB_TOKEN: z.string().default(''),
-  OPENAI_API_KEY: z.string().default(''),
+  ANTHROPIC_API_KEY: z.string().default(''),
+  VOYAGE_API_KEY: z.string().default(''),
   CRUNCHBASE_API_KEY: z.string().default(''),
   PIPELINE_CONCURRENCY: z.coerce.number().int().positive().default(5),
   PIPELINE_DELAY_MS: z.coerce.number().int().nonnegative().default(500),
@@ -26,3 +29,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
 
 export const config = loadConfig()
 export type Config = typeof config
+
+function findEnvPath(startDir: string): string {
+  let currentDir = startDir
+  let envPathMatch: string | null = null
+
+  while (true) {
+    const envPath = join(currentDir, '.env')
+    if (existsSync(envPath)) envPathMatch = envPath
+
+    const parentDir = dirname(currentDir)
+    if (parentDir === currentDir) return envPathMatch ?? join(startDir, '.env')
+    currentDir = parentDir
+  }
+}

@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { OpenAIEmbeddingProvider } from '../lib/embeddingProvider'
+import { VoyageEmbeddingProvider } from '../lib/embeddingProvider'
 import {
   PrismaCompanyEmbeddingRepository,
   PrismaCompanyRepository,
@@ -41,7 +41,7 @@ async function main() {
             : await new EmbeddingService(
                 companyRepo,
                 new PrismaCompanyEmbeddingRepository(prisma),
-                new OpenAIEmbeddingProvider(),
+                new VoyageEmbeddingProvider(),
                 new PrismaJobRepository(prisma),
                 new PrismaHNPostRepository(prisma)
               ).refreshCompanyEmbeddings({

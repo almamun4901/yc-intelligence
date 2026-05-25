@@ -86,7 +86,7 @@ model CompanyEmbedding {
   sourceText     String
   sourceHash     String
   embeddingModel String
-  embedding      Unsupported("vector(1536)")
+  embedding      Unsupported("vector(1024)")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

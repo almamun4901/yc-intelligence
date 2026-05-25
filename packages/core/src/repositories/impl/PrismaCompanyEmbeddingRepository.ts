@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import type { PrismaClient } from '@prisma/client'
 import type { Company, CompanyEmbedding, SemanticCompanySearchMatch } from '../../domain'
+import { EMBEDDING_DIMENSION } from '../../lib/embeddingProvider'
 import type {
   ICompanyEmbeddingRepository,
   SimilarCompanySearchParams,
@@ -185,8 +186,8 @@ export class PrismaCompanyEmbeddingRepository implements ICompanyEmbeddingReposi
 }
 
 const toVectorLiteral = (embedding: number[]): string => {
-  if (embedding.length !== 1536) {
-    throw new Error(`Expected embedding dimension 1536, received ${embedding.length}`)
+  if (embedding.length !== EMBEDDING_DIMENSION) {
+    throw new Error(`Expected embedding dimension ${EMBEDDING_DIMENSION}, received ${embedding.length}`)
   }
 
   return `[${embedding.map((value) => {

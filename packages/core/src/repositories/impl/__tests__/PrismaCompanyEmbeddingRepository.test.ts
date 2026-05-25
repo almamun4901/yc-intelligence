@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
+import { EMBEDDING_DIMENSION } from '../../../lib/embeddingProvider'
 import { PrismaCompanyEmbeddingRepository } from '../PrismaCompanyEmbeddingRepository'
 import { PrismaCompanyRepository } from '../PrismaCompanyRepository'
 
@@ -74,13 +75,13 @@ runIntegration('PrismaCompanyEmbeddingRepository', () => {
 })
 
 const vectorWithFirstValue = (value: number): number[] => {
-  const vector = Array.from({ length: 1536 }, () => 0)
+  const vector = Array.from({ length: EMBEDDING_DIMENSION }, () => 0)
   vector[0] = value
   return vector
 }
 
 const vectorWithSecondValue = (value: number): number[] => {
-  const vector = Array.from({ length: 1536 }, () => 0)
+  const vector = Array.from({ length: EMBEDDING_DIMENSION }, () => 0)
   vector[1] = value
   return vector
 }

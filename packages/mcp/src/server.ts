@@ -28,7 +28,6 @@ const { PrismaClient } = require('@prisma/client') as {
 const {
   CompanyService,
   EmbeddingService,
-  OpenAIEmbeddingProvider,
   PrismaCompanyEmbeddingRepository,
   HNService,
   JobService,
@@ -36,6 +35,7 @@ const {
   PrismaFounderRepository,
   PrismaHNPostRepository,
   PrismaJobRepository,
+  VoyageEmbeddingProvider,
   createLogger
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 } = require('@yc-intelligence/core') as {
@@ -51,7 +51,7 @@ const {
     jobRepository?: unknown,
     hnPostRepository?: unknown
   ) => SemanticToolService
-  OpenAIEmbeddingProvider: new () => unknown
+  VoyageEmbeddingProvider: new () => unknown
   PrismaCompanyEmbeddingRepository: new (prisma: PrismaRuntime) => unknown
   HNService: new (hnPostRepository: unknown) => HNToolService
   JobService: new (jobRepository: unknown) => JobToolService
@@ -94,7 +94,7 @@ export const createProductionMcpServer = (): { server: RuntimeMcpServer; close: 
   const semanticService = new EmbeddingService(
     new PrismaCompanyRepository(prisma),
     new PrismaCompanyEmbeddingRepository(prisma),
-    new OpenAIEmbeddingProvider(),
+    new VoyageEmbeddingProvider(),
     new PrismaJobRepository(prisma),
     hnPostRepository
   )

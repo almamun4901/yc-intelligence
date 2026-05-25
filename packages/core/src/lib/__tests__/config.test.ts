@@ -7,7 +7,8 @@ describe('loadConfig', () => {
       DATABASE_URL: 'postgresql://yc_user:yc_password@localhost:5433/yc_intelligence',
       REDIS_URL: 'redis://localhost:6379',
       GITHUB_TOKEN: 'ghp_test',
-      OPENAI_API_KEY: 'sk-test',
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      VOYAGE_API_KEY: 'pa-test',
       PIPELINE_CONCURRENCY: '3',
       PIPELINE_DELAY_MS: '50',
       NODE_ENV: 'test'
@@ -25,7 +26,8 @@ describe('loadConfig', () => {
     expect(config.DATABASE_URL).toBe('postgresql://yc_user:yc_password@localhost:5433/yc_intelligence')
     expect(config.REDIS_URL).toBe('redis://localhost:6379')
     expect(config.GITHUB_TOKEN).toBe('')
-    expect(config.OPENAI_API_KEY).toBe('')
+    expect(config.ANTHROPIC_API_KEY).toBe('')
+    expect(config.VOYAGE_API_KEY).toBe('')
   })
 
   it('rejects invalid environment values', () => {
