@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://yc_user:yc_password@localhost:5433/yc_intelligence
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @yc-intelligence/core prisma:generate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test core
+        run: pnpm --filter @yc-intelligence/core test
+
+      - name: Test MCP
+        run: pnpm --filter @yc-intelligence/mcp test
+
+      - name: Test API
+        run: pnpm --filter @yc-intelligence/api test
+
+      - name: Test web
+        run: pnpm --filter @yc-intelligence/web test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
