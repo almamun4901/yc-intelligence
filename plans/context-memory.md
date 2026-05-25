@@ -29,7 +29,9 @@ This file is the working implementation memory for the repo. Update it as phases
 - Phase 5 REST company API slice is implemented. API now exposes `/health`, `/companies`, and `/companies/:slug` over `CompanyService`, with Redis-backed best-effort caching for successful company GET responses.
 - Job search foundation is implemented and live-smoke verified. Core now has `Job`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
 - HN ingestion vertical slice is implemented and live-smoke verified. Core now has `HNPost`, `CompanyHNSyncState`, `IHNPostRepository`, `PrismaHNPostRepository`, `HNFetcher`, `HNService`, and `pipeline:hn`; MCP registers `get_hn_activity`; company detail includes recent/top HN posts when an HN repository is injected.
-- Next implementation work should continue with GitHub ingestion, semantic search/embeddings, richer company detail aggregation, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
+- GitHub ingestion is intentionally deferred for now because most YC companies do not expose public repos, matching is noisy, and public GitHub signals should not be treated as canonical internal tech stack data.
+- Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, OpenAI embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
+- Next implementation work should continue with semantic search/embeddings, richer company detail aggregation, pipeline orchestrator/scheduler work, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -116,8 +118,68 @@ Full `pipeline:companies` live ingestion and opt-in Prisma integration tests wer
 - [x] Add company service.
 - [x] Add job service.
 - [x] Add HN service.
-- [ ] Add founder and embedding services.
+- [ ] Add founder service.
+- [x] Add embedding service.
 - [x] Keep business logic out of adapters.
+
+#### Semantic Search Work Plan
+
+Goal: implement semantic search incrementally as a company-discovery layer, not as a replacement for exact facts such as hiring status, batch, status, location, or tags.
+
+Recommended first slice: company-level semantic search over a generated company search document composed from structured company fields plus recent job and HN signals. Defer job-level, founder-level, memory-level, and README/GitHub embeddings until the company slice is proven useful.
+
+- [x] Define `CompanyEmbedding` domain model for one current embedding per company.
+- [x] Add Prisma schema/migration for company embeddings using `pgvector`, including company relation, source text hash, embedding model name, embedding vector, and timestamps.
+- [x] Add repository interface and Prisma implementation for upserting embeddings, finding current company embeddings, and vector similarity search with optional structured filters.
+- [x] Add search-document builder that creates concise, deterministic text from company name, batch, tags, descriptions, location, hiring flag, recent job titles/tech stacks, and recent HN titles.
+- [x] Add embedding provider wrapper around OpenAI embeddings using `OPENAI_API_KEY` and `text-embedding-3-small`.
+- [x] Add `EmbeddingService` to generate/update company embeddings idempotently, skip unchanged documents by hash, and run in limited batches.
+- [x] Add `pipeline:embeddings` CLI command with environment knobs for limit, offset, and stale-only mode.
+- [x] Add semantic search service method that embeds the user query, runs vector search, returns ranked company summaries with similarity scores, and preserves exact filters for `batch`, `status`, `industry`, `isHiring`, `limit`, and `offset`.
+- [x] Register MCP `semantic_search` as a thin adapter over the core service.
+- [x] Add REST `GET /search/semantic`.
+- [x] Add unit tests for document construction, stale detection/hash behavior, search parameter normalization, and MCP schema/handler behavior.
+- [x] Add opt-in Prisma integration coverage for vector storage/search once the migration exists.
+- [ ] Live-smoke verify against local Postgres with a small company batch, then record the verification commands and results here.
+
+Status: company-level semantic search vertical slice implemented as of 2026-05-24. Verification passed with:
+
+- `pnpm --filter @yc-intelligence/core prisma:generate`
+- `pnpm --filter @yc-intelligence/core exec prisma validate`
+- `pnpm --filter @yc-intelligence/core typecheck`
+- `pnpm --filter @yc-intelligence/core test`
+- `pnpm --filter @yc-intelligence/core build`
+- `pnpm --filter @yc-intelligence/core lint`
+- `pnpm --filter @yc-intelligence/core exec prisma migrate deploy` against local Postgres, run with escalation because Prisma needs access to its local engine/cache path
+- `RUN_DB_TESTS=1 pnpm --filter @yc-intelligence/core test` against local Postgres, run with escalation because sandboxed tests cannot reach `localhost:5433`
+- `pnpm --filter @yc-intelligence/mcp typecheck`
+- `pnpm --filter @yc-intelligence/mcp test`
+- `pnpm --filter @yc-intelligence/mcp build`
+- `pnpm --filter @yc-intelligence/mcp lint`
+- `pnpm --filter @yc-intelligence/api typecheck`
+- `pnpm --filter @yc-intelligence/api test`
+- `pnpm --filter @yc-intelligence/api build`
+- `pnpm --filter @yc-intelligence/api lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm build`
+- `pnpm lint`
+
+Brutal testing follow-up on 2026-05-24:
+
+- `docker compose ps` confirmed local Postgres and Redis were healthy.
+- `pnpm --filter @yc-intelligence/core exec prisma migrate status` confirmed all 5 migrations were applied.
+- `RUN_DB_TESTS=1 pnpm --filter @yc-intelligence/core test` initially exposed non-repeatable integration tests because broad filters like `W24` and `Developer Tools` matched rows left by previous runs.
+- `PrismaCompanyEmbeddingRepository.test.ts` and `PrismaJobRepository.test.ts` now use unique batch/tag values per run, and the DB integration suite passes repeatedly.
+- Final verification after the fix passed with `RUN_DB_TESTS=1 pnpm --filter @yc-intelligence/core test`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm lint`.
+
+Implementation note: `PrismaCompanyEmbeddingRepository` uses raw SQL for `pgvector` insert/search because Prisma's normal model CRUD does not directly support vector operations. The embedding vector dimension is fixed at 1536 for `text-embedding-3-small`.
+
+Semantic search usage notes:
+
+- Use semantic search for fuzzy discovery queries such as "AI infrastructure for enterprise developers" or "boring workflow automation for finance teams."
+- Continue using structured company/job filters for factual constraints such as active status, hiring, batch, exact industry tags, and location.
+- Do not infer private tech stack from semantic matches; job postings remain the stronger source for technology signals.
 
 ### Phase 4: MCP Package
 
@@ -127,7 +189,7 @@ Full `pipeline:companies` live ingestion and opt-in Prisma integration tests wer
 - [x] Register `search_jobs`.
 - [x] Register `get_hn_activity`.
 - [ ] Register `search_founders`.
-- [ ] Register `semantic_search`.
+- [x] Register `semantic_search`.
 - [ ] Register future memory tools such as `add_memory`, `search_memory`, and `supersede_memory`.
 
 #### Phase 3/4 Company Query Vertical Slice
@@ -220,7 +282,7 @@ Live smoke verification notes:
 - [x] Add project memory unit tests.
 - [x] Add opt-in project memory integration tests.
 - [ ] Add MCP E2E tests.
-- [ ] Run manual Claude acceptance queries.
+- [ ] Run manual Claude acceptance queries. Claude is the target MCP client for acceptance testing and demo workflows.
 
 ### Phase 7: CI/CD & Launch
 

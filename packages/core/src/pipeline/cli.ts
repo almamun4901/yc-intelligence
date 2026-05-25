@@ -1,18 +1,21 @@
 import { PrismaClient } from '@prisma/client'
+import { OpenAIEmbeddingProvider } from '../lib/embeddingProvider'
 import {
+  PrismaCompanyEmbeddingRepository,
   PrismaCompanyRepository,
   PrismaFounderRepository,
   PrismaHNPostRepository,
   PrismaJobRepository,
   PrismaRefreshLogRepository
 } from '../repositories/impl'
+import { EmbeddingService } from '../services'
 import { HNFetcher, JobBoardFetcher, YCFetcher } from './fetchers'
 
 async function main() {
   const command = process.argv[2]
 
-  if (command !== 'companies' && command !== 'jobs' && command !== 'hn') {
-    throw new Error(`Unknown pipeline command "${command ?? ''}". Valid commands: companies, jobs, hn`)
+  if (command !== 'companies' && command !== 'jobs' && command !== 'hn' && command !== 'embeddings') {
+    throw new Error(`Unknown pipeline command "${command ?? ''}". Valid commands: companies, jobs, hn, embeddings`)
   }
 
   const prisma = new PrismaClient()
@@ -29,11 +32,23 @@ async function main() {
           ? await new JobBoardFetcher(companyRepo, new PrismaJobRepository(prisma), {
               maxCompanies: parsePositiveInteger(process.env.JOB_PIPELINE_LIMIT)
             }).run()
-          : await new HNFetcher(companyRepo, new PrismaHNPostRepository(prisma), {
-              maxCompanies: parsePositiveInteger(process.env.HN_PIPELINE_LIMIT),
-              lookbackDays: parsePositiveInteger(process.env.HN_LOOKBACK_DAYS),
-              maxPagesPerCompany: parsePositiveInteger(process.env.HN_MAX_PAGES_PER_COMPANY)
-            }).run()
+          : command === 'hn'
+            ? await new HNFetcher(companyRepo, new PrismaHNPostRepository(prisma), {
+                maxCompanies: parsePositiveInteger(process.env.HN_PIPELINE_LIMIT),
+                lookbackDays: parsePositiveInteger(process.env.HN_LOOKBACK_DAYS),
+                maxPagesPerCompany: parsePositiveInteger(process.env.HN_MAX_PAGES_PER_COMPANY)
+              }).run()
+            : await new EmbeddingService(
+                companyRepo,
+                new PrismaCompanyEmbeddingRepository(prisma),
+                new OpenAIEmbeddingProvider(),
+                new PrismaJobRepository(prisma),
+                new PrismaHNPostRepository(prisma)
+              ).refreshCompanyEmbeddings({
+                limit: parsePositiveInteger(process.env.EMBEDDING_PIPELINE_LIMIT),
+                offset: parsePositiveInteger(process.env.EMBEDDING_PIPELINE_OFFSET),
+                staleOnly: process.env.EMBEDDING_PIPELINE_STALE_ONLY === '1'
+              })
 
     process.stdout.write(`YC ${command} pipeline complete: ${JSON.stringify(result)}\n`)
   } finally {

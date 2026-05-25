@@ -11,22 +11,25 @@ runIntegration('PrismaJobRepository', () => {
   it('upserts, searches, and marks missing jobs inactive', async () => {
     const companyRepo = new PrismaCompanyRepository(prisma)
     const jobRepo = new PrismaJobRepository(prisma)
+    const suffix = Date.now()
+    const batch = `T${suffix}`
+    const industry = `Developer Tools ${suffix}`
     const company = await companyRepo.upsert({
       name: 'Job Repo Co',
-      slug: `job-repo-co-${Date.now()}`,
-      batch: 'W24',
+      slug: `job-repo-co-${suffix}`,
+      batch,
       status: 'Active',
       description: 'Builds hiring tools.',
       shortDescription: 'Hiring tools',
       website: 'https://example.com',
       teamSize: '1-10',
       isHiring: true,
-      tags: ['Developer Tools'],
+      tags: [industry],
       location: 'Remote'
     })
 
-    const firstApplyUrl = `https://example.com/jobs/backend-${Date.now()}`
-    const secondApplyUrl = `https://example.com/jobs/frontend-${Date.now()}`
+    const firstApplyUrl = `https://example.com/jobs/backend-${suffix}`
+    const secondApplyUrl = `https://example.com/jobs/frontend-${suffix}`
     await jobRepo.upsertMany([
       {
         companyId: company.id,
@@ -57,8 +60,8 @@ runIntegration('PrismaJobRepository', () => {
     const filtered = await jobRepo.search({
       techStack: ['rust'],
       isRemote: true,
-      batch: 'W24',
-      industry: 'Developer Tools',
+      batch,
+      industry,
       isActive: true
     })
     expect(filtered.total).toBe(1)

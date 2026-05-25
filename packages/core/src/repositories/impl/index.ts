@@ -1,4 +1,5 @@
 export * from './PrismaCompanyRepository'
+export * from './PrismaCompanyEmbeddingRepository'
 export * from './PrismaFounderRepository'
 export * from './PrismaHNPostRepository'
 export * from './PrismaJobRepository'

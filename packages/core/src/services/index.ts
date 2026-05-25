@@ -1,4 +1,5 @@
 export * from './CompanyService'
+export * from './EmbeddingService'
 export * from './HNService'
 export * from './JobService'
 export * from './MemoryService'
