@@ -27,7 +27,7 @@ This file is the working implementation memory for the repo. Update it as phases
 - Phase 2 has been started with the YC company fetch slice. Company rows can be populated from the live YC companies list endpoint; the current endpoint does not include founder data, so `Founder` remains schema/repository-ready but unpopulated by the current fetch path.
 - Phase 3/4 company query vertical slice is implemented. Core now exposes `CompanyService`; MCP now registers `search_companies` and `get_company_detail` over that service.
 - Phase 5 REST company API slice is implemented. API now exposes `/health`, `/companies`, and `/companies/:slug` over `CompanyService`, with Redis-backed best-effort caching for successful company GET responses.
-- Job search foundation is implemented and live-smoke verified. Core now has `Job`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
+- Job search foundation is implemented and live-smoke verified. Core now has `Job`, `CompanyJobSyncState`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
 - HN ingestion vertical slice is implemented and live-smoke verified. Core now has `HNPost`, `CompanyHNSyncState`, `IHNPostRepository`, `PrismaHNPostRepository`, `HNFetcher`, `HNService`, and `pipeline:hn`; MCP registers `get_hn_activity`; company detail includes recent/top HN posts when an HN repository is injected.
 - GitHub ingestion is intentionally deferred for now because most YC companies do not expose public repos, matching is noisy, and public GitHub signals should not be treated as canonical internal tech stack data.
 - Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, Voyage embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
@@ -290,6 +290,16 @@ Live smoke verification notes:
 - REST `GET /jobs?limit=3` returned HTTP 200 with `total: 6147`.
 - MCP `search_jobs` over Prisma-backed `JobService` returned `total: 6147`.
 - Full unbounded ingestion should be rerun after adding stronger progress/resume controls or a known ATS slug mapping layer; job search is usable against the current local corpus, but full-refresh runtime remains a pipeline scalability concern.
+
+Hardening follow-up on 2026-05-25:
+
+- Added `CompanyJobSyncState` with per-company job refresh outcomes, cached `lastAtsSource`, failure counts, and last error/status fields.
+- `JobBoardFetcher` now tries a cached ATS source first, records `found_jobs`, `zero_jobs`, `no_supported_board`, and `transient_failure` outcomes, marks stale jobs inactive only when a supported board returns successfully, and returns a more explicit summary with total/offset/limit, companies with jobs, zero-job boards, unsupported boards, transient failures, upserted jobs, and inactive-marked counts.
+- Added `JOB_PIPELINE_OFFSET` alongside `JOB_PIPELINE_LIMIT` for bounded job ingestion windows such as `0-500`, `500-1000`, etc.
+- Verification passed with `pnpm --filter @yc-intelligence/core prisma:generate`, `pnpm --filter @yc-intelligence/core exec prisma validate`, `pnpm --filter @yc-intelligence/core typecheck`, `pnpm --filter @yc-intelligence/core test`, `pnpm --filter @yc-intelligence/core build`, `pnpm --filter @yc-intelligence/core lint`, `RUN_DB_TESTS=1 pnpm --filter @yc-intelligence/core test`, `pnpm typecheck`, `pnpm test`, and `pnpm lint`.
+- Local migration deploy applied `20260525120000_job_ingestion_hardening` successfully.
+- Bounded live smoke passed with `JOB_PIPELINE_LIMIT=5 JOB_PIPELINE_OFFSET=0 pnpm --filter @yc-intelligence/core pipeline:jobs`, returning `{"totalCompanies":4128,"offset":0,"limit":5,"processed":5,"jobsFound":0,"jobsUpserted":0,"companiesWithJobs":0,"companiesWithZeroJobs":0,"companiesWithoutSupportedBoard":5,"transientFailures":0,"parserFailures":0,"inactiveMarked":0,"errors":0}` in about 2 seconds.
+- Adjacent offset smoke passed with `JOB_PIPELINE_LIMIT=5 JOB_PIPELINE_OFFSET=5 pnpm --filter @yc-intelligence/core pipeline:jobs`, returning the same clean no-board summary for the next five companies in about 2 seconds.
 
 #### HN Ingestion Slice
 

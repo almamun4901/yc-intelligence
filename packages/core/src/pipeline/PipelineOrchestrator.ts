@@ -40,6 +40,7 @@ export interface PipelineRunResult {
 
 export interface PipelineRuntimeOptions {
   jobLimit?: number
+  jobOffset?: number
   hnLimit?: number
   hnLookbackDays?: number
   hnMaxPagesPerCompany?: number
@@ -135,6 +136,7 @@ export const createPipelineRunOptions = (env: NodeJS.ProcessEnv = process.env): 
 
 export const createPipelineRuntimeOptions = (env: NodeJS.ProcessEnv = process.env): PipelineRuntimeOptions => ({
   jobLimit: parsePositiveInteger(env.JOB_PIPELINE_LIMIT),
+  jobOffset: parseNonNegativeInteger(env.JOB_PIPELINE_OFFSET),
   hnLimit: parsePositiveInteger(env.HN_PIPELINE_LIMIT),
   hnLookbackDays: parsePositiveInteger(env.HN_LOOKBACK_DAYS),
   hnMaxPagesPerCompany: parsePositiveInteger(env.HN_MAX_PAGES_PER_COMPANY),
@@ -155,14 +157,21 @@ export const createHNFetcherOptions = (options: PipelineRuntimeOptions): HNFetch
   maxPagesPerCompany: options.hnMaxPagesPerCompany
 })
 
-export const createJobFetcherOptions = (options: PipelineRuntimeOptions): { maxCompanies?: number } => ({
-  maxCompanies: options.jobLimit
+export const createJobFetcherOptions = (options: PipelineRuntimeOptions): { maxCompanies?: number; offset?: number } => ({
+  maxCompanies: options.jobLimit,
+  offset: options.jobOffset
 })
 
 const parsePositiveInteger = (value: string | undefined): number | undefined => {
   if (!value) return undefined
   const parsed = Number.parseInt(value, 10)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+const parseNonNegativeInteger = (value: string | undefined): number | undefined => {
+  if (!value) return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
 }
 
 const dedupeStages = (stages: PipelineStage[]): PipelineStage[] => [...new Set(stages)]

@@ -86,6 +86,7 @@ describe('pipeline option parsing', () => {
     expect(
       createPipelineRuntimeOptions({
         JOB_PIPELINE_LIMIT: '10',
+        JOB_PIPELINE_OFFSET: '5',
         HN_PIPELINE_LIMIT: '20',
         HN_LOOKBACK_DAYS: '14',
         HN_MAX_PAGES_PER_COMPANY: '2',
@@ -95,6 +96,7 @@ describe('pipeline option parsing', () => {
       })
     ).toEqual({
       jobLimit: 10,
+      jobOffset: 5,
       hnLimit: 20,
       hnLookbackDays: 14,
       hnMaxPagesPerCompany: 2,
@@ -115,7 +117,21 @@ const companiesRunner = (calls: string[]) => ({
 const jobsRunner = (calls: string[]) => ({
   run: vi.fn(async () => {
     calls.push('jobs')
-    return { processed: 1, jobsFound: 1, errors: 0 }
+    return {
+      totalCompanies: 1,
+      offset: 0,
+      limit: 10000,
+      processed: 1,
+      jobsFound: 1,
+      jobsUpserted: 1,
+      companiesWithJobs: 1,
+      companiesWithZeroJobs: 0,
+      companiesWithoutSupportedBoard: 0,
+      transientFailures: 0,
+      parserFailures: 0,
+      inactiveMarked: 0,
+      errors: 0
+    }
   })
 })
 

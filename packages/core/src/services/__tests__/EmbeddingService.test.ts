@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   Company,
   CompanyEmbedding,
+  CompanyJobSyncState,
   CompanySearchParams,
   HNPost,
   HNPostSearchParams,
@@ -17,7 +18,8 @@ import type {
   IJobRepository,
   SimilarCompanySearchParams,
   UpsertCompanyEmbeddingInput,
-  UpsertCompanyInput
+  UpsertCompanyInput,
+  UpdateJobSyncStateInput
 } from '../../repositories'
 import { EmbeddingService } from '../EmbeddingService'
 
@@ -195,6 +197,25 @@ class InMemoryJobRepository implements IJobRepository {
 
   async markInactiveForCompany(): Promise<number> {
     return 0
+  }
+
+  async getSyncState(): Promise<CompanyJobSyncState | null> {
+    return null
+  }
+
+  async updateSyncState(companyId: string, input: UpdateJobSyncStateInput): Promise<CompanyJobSyncState> {
+    return {
+      id: 'job-sync-state-1',
+      companyId,
+      lastFetchedAt: input.lastFetchedAt ?? null,
+      lastSuccessfulFetchAt: input.lastSuccessfulFetchAt ?? null,
+      lastFoundJobsAt: input.lastFoundJobsAt ?? null,
+      lastAtsSource: input.lastAtsSource ?? null,
+      lastStatus: input.lastStatus ?? null,
+      failureCount: input.failureCount ?? 0,
+      lastError: input.lastError ?? null,
+      updatedAt: new Date('2026-05-25T00:00:00.000Z')
+    }
   }
 }
 

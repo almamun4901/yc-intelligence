@@ -1,8 +1,9 @@
 import type { Prisma, PrismaClient } from '@prisma/client'
-import type { ATSSource, Job, JobSearchParams } from '../../domain'
-import type { IJobRepository, UpsertJobInput } from '../IJobRepository'
+import type { ATSSource, CompanyJobSyncState, Job, JobSearchParams, JobSyncStatus } from '../../domain'
+import type { IJobRepository, UpdateJobSyncStateInput, UpsertJobInput } from '../IJobRepository'
 
 type JobRow = Awaited<ReturnType<PrismaClient['job']['findFirst']>>
+type JobSyncStateRow = Awaited<ReturnType<PrismaClient['companyJobSyncState']['findFirst']>>
 
 export class PrismaJobRepository implements IJobRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -60,6 +61,37 @@ export class PrismaJobRepository implements IJobRepository {
     return result.count
   }
 
+  async getSyncState(companyId: string): Promise<CompanyJobSyncState | null> {
+    const row = await this.prisma.companyJobSyncState.findUnique({ where: { companyId } })
+    return row ? this.toSyncStateDomain(row) : null
+  }
+
+  async updateSyncState(companyId: string, input: UpdateJobSyncStateInput): Promise<CompanyJobSyncState> {
+    const row = await this.prisma.companyJobSyncState.upsert({
+      where: { companyId },
+      create: {
+        companyId,
+        lastFetchedAt: input.lastFetchedAt,
+        lastSuccessfulFetchAt: input.lastSuccessfulFetchAt,
+        lastFoundJobsAt: input.lastFoundJobsAt,
+        lastAtsSource: input.lastAtsSource,
+        lastStatus: input.lastStatus,
+        failureCount: input.failureCount ?? 0,
+        lastError: input.lastError
+      },
+      update: {
+        ...(input.lastFetchedAt !== undefined ? { lastFetchedAt: input.lastFetchedAt } : {}),
+        ...(input.lastSuccessfulFetchAt !== undefined ? { lastSuccessfulFetchAt: input.lastSuccessfulFetchAt } : {}),
+        ...(input.lastFoundJobsAt !== undefined ? { lastFoundJobsAt: input.lastFoundJobsAt } : {}),
+        ...(input.lastAtsSource !== undefined ? { lastAtsSource: input.lastAtsSource } : {}),
+        ...(input.lastStatus !== undefined ? { lastStatus: input.lastStatus } : {}),
+        ...(input.failureCount !== undefined ? { failureCount: input.failureCount } : {}),
+        ...(input.lastError !== undefined ? { lastError: input.lastError } : {})
+      }
+    })
+    return this.toSyncStateDomain(row)
+  }
+
   private buildWhere(params: JobSearchParams): Prisma.JobWhereInput {
     return {
       ...(params.title ? { title: { contains: params.title, mode: 'insensitive' } } : {}),
@@ -107,6 +139,21 @@ export class PrismaJobRepository implements IJobRepository {
       isActive: row.isActive,
       postedAt: row.postedAt,
       fetchedAt: row.fetchedAt
+    }
+  }
+
+  private toSyncStateDomain(row: NonNullable<JobSyncStateRow>): CompanyJobSyncState {
+    return {
+      id: row.id,
+      companyId: row.companyId,
+      lastFetchedAt: row.lastFetchedAt,
+      lastSuccessfulFetchAt: row.lastSuccessfulFetchAt,
+      lastFoundJobsAt: row.lastFoundJobsAt,
+      lastAtsSource: row.lastAtsSource as ATSSource | null,
+      lastStatus: row.lastStatus as JobSyncStatus | null,
+      failureCount: row.failureCount,
+      lastError: row.lastError,
+      updatedAt: row.updatedAt
     }
   }
 }

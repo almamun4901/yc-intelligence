@@ -71,6 +71,7 @@ model Company {
   hnPosts  HNPost[]
   embedding CompanyEmbedding?
   hnSyncState CompanyHNSyncState?
+  jobSyncState CompanyJobSyncState?
 
   @@index([slug])
   @@index([batch])
@@ -162,6 +163,27 @@ model Job {
   @@index([atsSource])
   @@index([techStack], type: Gin)
   @@map("jobs")
+}
+
+model CompanyJobSyncState {
+  id                    String    @id @default(uuid())
+  companyId             String    @unique
+  lastFetchedAt         DateTime?
+  lastSuccessfulFetchAt DateTime?
+  lastFoundJobsAt       DateTime?
+  lastAtsSource         String?
+  lastStatus            String?
+  failureCount          Int       @default(0)
+  lastError             String?
+  updatedAt             DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([lastSuccessfulFetchAt])
+  @@index([lastAtsSource])
+  @@index([lastStatus])
+  @@index([failureCount])
+  @@map("company_job_sync_states")
 }
 
 model Founder {

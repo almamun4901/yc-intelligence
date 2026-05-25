@@ -70,5 +70,29 @@ runIntegration('PrismaJobRepository', () => {
     await expect(jobRepo.markInactiveForCompany(company.id, [firstApplyUrl])).resolves.toBe(1)
     const inactive = await jobRepo.search({ companyId: company.id, isActive: false })
     expect(inactive.data.map((job) => job.applyUrl)).toContain(secondApplyUrl)
+
+    const syncState = await jobRepo.updateSyncState(company.id, {
+      lastFetchedAt: new Date('2026-05-25T12:00:00.000Z'),
+      lastSuccessfulFetchAt: new Date('2026-05-25T12:00:00.000Z'),
+      lastFoundJobsAt: new Date('2026-05-25T12:00:00.000Z'),
+      lastAtsSource: 'greenhouse',
+      lastStatus: 'found_jobs',
+      failureCount: 0,
+      lastError: null
+    })
+    expect(syncState).toMatchObject({
+      companyId: company.id,
+      lastAtsSource: 'greenhouse',
+      lastStatus: 'found_jobs',
+      failureCount: 0,
+      lastError: null
+    })
+
+    const foundSyncState = await jobRepo.getSyncState(company.id)
+    expect(foundSyncState).toMatchObject({
+      companyId: company.id,
+      lastAtsSource: 'greenhouse',
+      lastStatus: 'found_jobs'
+    })
   })
 })
