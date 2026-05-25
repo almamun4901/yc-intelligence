@@ -332,9 +332,11 @@ Live smoke verification notes:
 
 ### Phase 7: CI/CD & Launch
 
-- [ ] Add GitHub Actions CI.
+- [x] Add GitHub Actions CI.
 - [ ] Add README, license, and repo polish.
 - [ ] Prepare demo and launch checklist.
+
+Status: baseline CI added as of 2026-05-25. The workflow runs on PRs and pushes to `main`, sets up Node 20 and pnpm 10.30.1, installs with the lockfile, generates the Prisma client, then runs `pnpm typecheck`, package test suites sequentially, `pnpm build`, and `pnpm lint`. It intentionally does not run `RUN_DB_TESTS=1` or start Postgres/Redis services yet; DB-backed CI should be a follow-up once the lightweight gate is stable.
 
 ## Decisions Locked In
 
