@@ -31,7 +31,7 @@ This file is the working implementation memory for the repo. Update it as phases
 - HN ingestion vertical slice is implemented and live-smoke verified. Core now has `HNPost`, `CompanyHNSyncState`, `IHNPostRepository`, `PrismaHNPostRepository`, `HNFetcher`, `HNService`, and `pipeline:hn`; MCP registers `get_hn_activity`; company detail includes recent/top HN posts when an HN repository is injected.
 - GitHub ingestion is intentionally deferred for now because most YC companies do not expose public repos, matching is noisy, and public GitHub signals should not be treated as canonical internal tech stack data.
 - Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, Voyage embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
-- Next implementation work should continue with semantic search/embeddings, richer company detail aggregation, pipeline orchestrator/scheduler work, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
+- Next implementation work should continue with richer company detail aggregation, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -75,7 +75,7 @@ Status: complete as of 2026-05-23. This was the first implementation phase start
 - [x] Add tech stack extractor.
 - [x] Add HN fetcher.
 - [ ] Add GitHub fetcher.
-- [ ] Add pipeline orchestrator, CLI, and scheduler.
+- [x] Add pipeline orchestrator, CLI, and scheduler.
 
 #### Phase 2 YC Company Fetch Slice
 
@@ -111,6 +111,30 @@ Manual local smoke verification also passed:
 - `shortDescription`, `description`, `teamSize`, and `location` were populated after the transformer compatibility patch.
 
 Full `pipeline:companies` live ingestion and opt-in Prisma integration tests were not run after this manual smoke verification. The current YC list endpoint response inspected during testing does not include `founders`, so founder ingestion requires a later source or endpoint decision.
+
+#### Phase 2 Pipeline Orchestration/Scheduler Slice
+
+- [x] Add `PipelineOrchestrator` that runs companies, jobs, HN, and embeddings in dependency order.
+- [x] Add `pipeline:seed` and `pipeline:refresh` scripts over the orchestrator while preserving individual slice scripts.
+- [x] Add `PIPELINE_STAGES` for selected stage runs, e.g. `PIPELINE_STAGES=jobs,hn`.
+- [x] Add `PIPELINE_RESUME_FROM` for manual resume after a failed stage, e.g. `PIPELINE_RESUME_FROM=hn`.
+- [x] Add `PipelineScheduler` using `node-cron`, with overlap protection for long-running refreshes.
+- [x] Add `pipeline:schedule` script with `PIPELINE_SCHEDULE_CRON`, `PIPELINE_SCHEDULE_MODE`, and `PIPELINE_RUN_ON_START` controls.
+- [x] Add unit coverage for stage ordering, selected stages, resume behavior, failure stop behavior, and env option parsing.
+
+Status: implementation complete as of 2026-05-25. Verification passed with:
+
+- `pnpm --filter @yc-intelligence/core typecheck`
+- `pnpm --filter @yc-intelligence/core lint`
+- `pnpm --filter @yc-intelligence/core test`
+- `pnpm --filter @yc-intelligence/core build`
+- `PIPELINE_STAGES=embeddings EMBEDDING_PIPELINE_LIMIT=1 pnpm --filter @yc-intelligence/core pipeline:refresh`, which completed with `{"processed":1,"generated":0,"skipped":1}` for the orchestrated embeddings stage.
+
+Usage notes:
+
+- `pnpm --filter @yc-intelligence/core pipeline:seed` and `pipeline:refresh` both run `companies -> jobs -> hn -> embeddings` by default.
+- For safer incremental/live runs, combine stage selection and existing limits, e.g. `PIPELINE_STAGES=hn,embeddings HN_PIPELINE_LIMIT=25 EMBEDDING_PIPELINE_LIMIT=25 pnpm --filter @yc-intelligence/core pipeline:refresh`.
+- If a run fails after a successful earlier stage, rerun with `PIPELINE_RESUME_FROM=<stage>` to continue from the failed stage within the selected stage list.
 
 ### Phase 3: Service Layer
 
