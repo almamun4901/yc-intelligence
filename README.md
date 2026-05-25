@@ -48,3 +48,4 @@ Useful runtime knobs:
 - `PIPELINE_SCHEDULE_CRON="0 3 * * *"` controls the scheduler cron.
 - `PIPELINE_RUN_ON_START=1` runs immediately when the scheduler starts.
 - Existing per-stage limits still work, such as `JOB_PIPELINE_LIMIT`, `HN_PIPELINE_LIMIT`, and `EMBEDDING_PIPELINE_LIMIT`.
+- `JOB_PIPELINE_OFFSET` runs job ingestion from a specific active-company offset for bounded batch windows.

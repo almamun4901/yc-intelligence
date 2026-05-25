@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Job, JobSearchParams } from '../../domain'
-import type { IJobRepository } from '../../repositories'
+import type { CompanyJobSyncState, Job, JobSearchParams } from '../../domain'
+import type { IJobRepository, UpdateJobSyncStateInput } from '../../repositories'
 import { JobService } from '../JobService'
 
 describe('JobService', () => {
@@ -64,5 +64,29 @@ class InMemoryJobRepository implements IJobRepository {
 
   async markInactiveForCompany(): Promise<number> {
     return 0
+  }
+
+  async getSyncState(): Promise<CompanyJobSyncState | null> {
+    return null
+  }
+
+  async updateSyncState(companyId: string, input: UpdateJobSyncStateInput): Promise<CompanyJobSyncState> {
+    return makeJobSyncState({ companyId, ...input })
+  }
+}
+
+function makeJobSyncState(overrides: Partial<CompanyJobSyncState> = {}): CompanyJobSyncState {
+  return {
+    id: 'job-sync-state-1',
+    companyId: 'company-1',
+    lastFetchedAt: null,
+    lastSuccessfulFetchAt: null,
+    lastFoundJobsAt: null,
+    lastAtsSource: null,
+    lastStatus: null,
+    failureCount: 0,
+    lastError: null,
+    updatedAt: new Date('2026-05-25T00:00:00.000Z'),
+    ...overrides
   }
 }
