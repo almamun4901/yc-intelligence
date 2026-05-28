@@ -256,6 +256,10 @@ export function Dashboard() {
 
       <section className="workspace" aria-label="YC Intelligence research cockpit">
         <header className="topbar">
+          <div className="topbar-heading">
+            <span className="eyebrow">Research cockpit</span>
+            <h1>YC company intelligence</h1>
+          </div>
           <form className="command-search" onSubmit={submitSearch}>
             <span aria-hidden="true">Search</span>
             <input

@@ -1,0 +1,10 @@
+{
+  "scannedAt": "2026-05-28",
+  "fontStack": "CSS custom property system stack in packages/web/src/app/globals.css",
+  "palette": "CSS custom properties in packages/web/src/app/globals.css",
+  "motion": "No motion dependency in packages/web/package.json; native transitions only",
+  "spacing": "CSS custom properties added on an 8px rhythm",
+  "framework": "Next.js 15 app router",
+  "preserve": ["Next.js app router", "existing Dashboard component ownership", "live API data surface"],
+  "introduce": ["Hallmark token discipline", "research-cockpit hierarchy", "responsive table and inspector polish"]
+}

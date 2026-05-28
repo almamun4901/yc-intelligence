@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.YC_INTELLIGENCE_API_URL ?? 'http://localhost:3001'
+const API_BASE_URL = process.env.YC_INTELLIGENCE_API_URL ?? 'http://127.0.0.1:3001'
 
 type RouteContext = {
   params: Promise<{
@@ -20,6 +20,17 @@ export async function GET(request: Request, context: RouteContext) {
     })
     const contentType = upstream.headers.get('content-type') ?? 'application/json'
     const body = await upstream.text()
+
+    if (!contentType.includes('application/json')) {
+      return Response.json(
+        {
+          error: 'API returned non-JSON response',
+          message: `Expected JSON from ${upstreamUrl.toString()}, received ${contentType}`,
+          upstream: upstreamUrl.toString()
+        },
+        { status: 502 }
+      )
+    }
 
     return new Response(body, {
       status: upstream.status,
