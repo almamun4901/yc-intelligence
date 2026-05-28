@@ -24,6 +24,7 @@ export const searchCompaniesInputSchema = {
   batch: z.string().optional(),
   status: companyStatusSchema.optional(),
   industry: z.string().optional(),
+  location: z.string().optional(),
   isHiring: z.boolean().optional(),
   limit: z.number().int().min(0).optional(),
   offset: z.number().int().min(0).optional()
@@ -42,7 +43,7 @@ export const registerCompanyTools = (server: ToolServer, companyService: Company
     'search_companies',
     {
       title: 'Search YC companies',
-      description: 'Search YC companies by text query, batch, status, industry tag, and hiring status.',
+      description: 'Search YC companies by text query, batch, status, industry tag, location, and hiring status.',
       inputSchema: searchCompaniesInputSchema
     },
     async (input: CompanySearchParams) => handleSearchCompanies(input, companyService)

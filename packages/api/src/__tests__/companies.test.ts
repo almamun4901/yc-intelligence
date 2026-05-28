@@ -20,7 +20,7 @@ describe('API company routes', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: '/companies?query=dev&batch=W24&status=Active&industry=Developer%20Tools&isHiring=true&limit=10&offset=5'
+      url: '/companies?query=dev&batch=W24&status=Active&industry=Developer%20Tools&location=Dhaka&isHiring=true&limit=10&offset=5'
     })
 
     expect(response.statusCode).toBe(200)
@@ -29,6 +29,7 @@ describe('API company routes', () => {
       batch: 'W24',
       status: 'Active',
       industry: 'Developer Tools',
+      location: 'Dhaka',
       isHiring: true,
       limit: 10,
       offset: 5

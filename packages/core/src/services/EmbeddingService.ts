@@ -140,6 +140,7 @@ export class EmbeddingService {
     const query = params.query.trim()
     const batch = params.batch?.trim()
     const industry = params.industry?.trim()
+    const location = params.location?.trim()
     const limit = Math.min(Math.max(params.limit ?? DEFAULT_SEARCH_LIMIT, 0), MAX_SEARCH_LIMIT)
     const offset = Math.max(params.offset ?? 0, 0)
 
@@ -148,6 +149,7 @@ export class EmbeddingService {
       ...(batch ? { batch } : {}),
       ...(params.status ? { status: params.status } : {}),
       ...(industry ? { industry } : {}),
+      ...(location ? { location } : {}),
       ...(params.isHiring !== undefined ? { isHiring: params.isHiring } : {}),
       limit,
       offset

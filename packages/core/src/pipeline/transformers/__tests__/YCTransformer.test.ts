@@ -86,6 +86,16 @@ describe('YCTransformer', () => {
     })
   })
 
+  it('maps YC hiring badges to the hiring flag', () => {
+    const company = transformer.toCompany({
+      name: 'Hiring Co',
+      slug: 'hiring-co',
+      badges: ['isHiring']
+    })
+
+    expect(company.isHiring).toBe(true)
+  })
+
   it('normalizes known and unknown statuses', () => {
     expect(transformer.toCompany({ name: 'Dead Co', slug: 'dead-co', status: 'Dead' }).status).toBe(
       'Dead'

@@ -24,6 +24,7 @@ export interface CompanySearchParams {
   batch?: string
   status?: CompanyStatus
   industry?: string
+  location?: string
   isHiring?: boolean
   limit?: number
   offset?: number

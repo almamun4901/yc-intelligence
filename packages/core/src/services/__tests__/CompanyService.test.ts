@@ -12,6 +12,7 @@ describe('CompanyService', () => {
       query: '  developer tools  ',
       batch: '  W24  ',
       industry: '  devtools  ',
+      location: '  Dhaka  ',
       isHiring: true
     })
 
@@ -19,6 +20,7 @@ describe('CompanyService', () => {
       query: 'developer tools',
       batch: 'W24',
       industry: 'devtools',
+      location: 'Dhaka',
       isHiring: true,
       limit: 20,
       offset: 0
