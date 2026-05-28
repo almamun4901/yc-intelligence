@@ -10,6 +10,7 @@ describe('company MCP tools', () => {
       batch: 'W24',
       status: 'Active',
       industry: 'Developer Tools',
+      location: 'Dhaka',
       isHiring: true,
       limit: 10,
       offset: 5
@@ -20,6 +21,7 @@ describe('company MCP tools', () => {
       batch: 'W24',
       status: 'Active',
       industry: 'Developer Tools',
+      location: 'Dhaka',
       isHiring: true,
       limit: 10,
       offset: 5
@@ -48,6 +50,28 @@ describe('company MCP tools', () => {
       ]
     })
     expect(payload.companies[0].description).toBeUndefined()
+  })
+
+  it('passes location filters through to the company service', async () => {
+    let searchParams = null as unknown
+    const service = {
+      searchCompanies: async (params: unknown) => {
+        searchParams = params
+        return { data: [makeCompany({ name: 'Chaldal', slug: 'chaldal', location: 'Dhaka, Bangladesh' })], total: 1 }
+      },
+      getCompanyDetail: async () => null
+    }
+
+    const result = await handleSearchCompanies({ location: 'Dhaka', limit: 25 }, service)
+    const payload = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}')
+
+    expect(searchParams).toEqual({ location: 'Dhaka', limit: 25 })
+    expect(payload.total).toBe(1)
+    expect(payload.companies[0]).toMatchObject({
+      name: 'Chaldal',
+      slug: 'chaldal',
+      location: 'Dhaka, Bangladesh'
+    })
   })
 
   it('formats a clear not-found detail response', async () => {

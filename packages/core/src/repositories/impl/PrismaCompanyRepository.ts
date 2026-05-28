@@ -66,7 +66,8 @@ export class PrismaCompanyRepository implements ICompanyRepository {
       ...(params.batch ? { batch: params.batch } : {}),
       ...(params.status ? { status: params.status } : {}),
       ...(params.isHiring !== undefined ? { isHiring: params.isHiring } : {}),
-      ...(params.industry ? { tags: { has: params.industry } } : {})
+      ...(params.industry ? { tags: { has: params.industry } } : {}),
+      ...(params.location ? { location: { contains: params.location, mode: 'insensitive' } } : {})
     }
   }
 

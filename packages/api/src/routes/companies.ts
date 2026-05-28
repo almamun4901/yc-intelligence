@@ -10,8 +10,9 @@ export interface CompanyRouteOptions {
   logger: ApiLogger
 }
 
-type CompanySearchQuery = Omit<CompanySearchParams, 'isHiring' | 'limit' | 'offset'> & {
+type CompanySearchQuery = Omit<CompanySearchParams, 'isHiring' | 'limit' | 'offset' | 'location'> & {
   isHiring?: boolean | string
+  location?: string
   limit?: number | string
   offset?: number | string
 }
@@ -35,6 +36,7 @@ export const registerCompanyRoutes = (app: FastifyInstance, options: CompanyRout
             batch: { type: 'string' },
             status: { type: 'string', enum: companyStatusValues },
             industry: { type: 'string' },
+            location: { type: 'string' },
             isHiring: { type: 'boolean' },
             limit: { type: 'integer', minimum: 0 },
             offset: { type: 'integer', minimum: 0 }
@@ -140,6 +142,7 @@ const toCompanySearchParams = (query: CompanySearchQuery): CompanySearchParams =
   ...(query.batch ? { batch: query.batch } : {}),
   ...(query.status ? { status: query.status } : {}),
   ...(query.industry ? { industry: query.industry } : {}),
+  ...(query.location ? { location: query.location } : {}),
   ...(query.isHiring !== undefined ? { isHiring: query.isHiring === true || query.isHiring === 'true' } : {}),
   ...(query.limit !== undefined ? { limit: Number(query.limit) } : {}),
   ...(query.offset !== undefined ? { offset: Number(query.offset) } : {})

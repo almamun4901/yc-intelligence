@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { PrismaCompanyRepository } from '../PrismaCompanyRepository'
 import { PrismaFounderRepository } from '../PrismaFounderRepository'
 
@@ -10,33 +10,32 @@ const runIntegration = process.env.RUN_INTEGRATION_TESTS === 'true'
   const companyRepo = new PrismaCompanyRepository(prisma)
   const founderRepo = new PrismaFounderRepository(prisma)
 
-  beforeEach(async () => {
-    await prisma.founder.deleteMany()
-    await prisma.company.deleteMany()
-  })
-
   afterAll(async () => {
     await prisma.$disconnect()
   })
 
   it('upserts and updates companies by slug', async () => {
-    const created = await companyRepo.upsert(makeCompany({ name: 'Original', slug: 'acme' }))
-    const updated = await companyRepo.upsert(makeCompany({ name: 'Updated', slug: 'acme' }))
+    const slug = testSlug('acme')
+    const created = await companyRepo.upsert(makeCompany({ name: 'Original', slug }))
+    const updated = await companyRepo.upsert(makeCompany({ name: 'Updated', slug }))
 
     expect(updated.id).toBe(created.id)
     expect(updated.name).toBe('Updated')
-    expect(await prisma.company.count()).toBe(1)
+    expect(await prisma.company.count({ where: { slug } })).toBe(1)
   })
 
   it('searches by batch, status, hiring flag, and tag', async () => {
+    const suffix = Date.now()
+    const batch = `T${suffix}`
+    const industry = `Integration AI ${suffix}`
     await companyRepo.upsert(
-      makeCompany({ name: 'Hiring AI', slug: 'hiring-ai', batch: 'W24', tags: ['AI'] })
+      makeCompany({ name: 'Hiring AI', slug: testSlug('hiring-ai'), batch, tags: [industry] })
     )
     await companyRepo.upsert(
       makeCompany({
         name: 'Inactive Bio',
-        slug: 'inactive-bio',
-        batch: 'S23',
+        slug: testSlug('inactive-bio'),
+        batch,
         status: 'Inactive',
         isHiring: false,
         tags: ['Bio']
@@ -44,10 +43,10 @@ const runIntegration = process.env.RUN_INTEGRATION_TESTS === 'true'
     )
 
     const result = await companyRepo.search({
-      batch: 'W24',
+      batch,
       status: 'Active',
       isHiring: true,
-      industry: 'AI'
+      industry
     })
 
     expect(result.total).toBe(1)
@@ -55,7 +54,7 @@ const runIntegration = process.env.RUN_INTEGRATION_TESTS === 'true'
   })
 
   it('upserts founders idempotently and cascades deletes from company', async () => {
-    const company = await companyRepo.upsert(makeCompany({ slug: 'founder-co' }))
+    const company = await companyRepo.upsert(makeCompany({ slug: testSlug('founder-co') }))
 
     await founderRepo.upsertMany([
       { companyId: company.id, name: 'Ada Lovelace', linkedinUrl: null }
@@ -69,7 +68,7 @@ const runIntegration = process.env.RUN_INTEGRATION_TESTS === 'true'
     expect(founders[0].linkedinUrl).toBe('https://linkedin.com/in/ada')
 
     await prisma.company.delete({ where: { id: company.id } })
-    expect(await prisma.founder.count()).toBe(0)
+    expect(await founderRepo.findByCompanyId(company.id)).toHaveLength(0)
   })
 })
 
@@ -89,4 +88,8 @@ function makeCompany(overrides: Partial<Parameters<PrismaCompanyRepository['upse
     rawData: {},
     ...overrides
   }
+}
+
+function testSlug(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }

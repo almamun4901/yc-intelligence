@@ -10,6 +10,7 @@ describe('semantic MCP tools', () => {
       batch: 'W24',
       status: 'Active',
       industry: 'Developer Tools',
+      location: 'Dhaka',
       isHiring: true,
       limit: 10,
       offset: 5
@@ -20,6 +21,7 @@ describe('semantic MCP tools', () => {
       batch: 'W24',
       status: 'Active',
       industry: 'Developer Tools',
+      location: 'Dhaka',
       isHiring: true,
       limit: 10,
       offset: 5
@@ -51,6 +53,27 @@ describe('semantic MCP tools', () => {
           location: 'Remote'
         }
       ]
+    })
+  })
+
+  it('passes location filters through to semantic search', async () => {
+    let searchParams = null as unknown
+    const service = {
+      semanticSearch: async (params: unknown) => {
+        searchParams = params
+        return { data: [{ company: makeCompany({ name: 'Chaldal', slug: 'chaldal', location: 'Dhaka, Bangladesh' }), score: 0.9 }], total: 1 }
+      }
+    }
+
+    const result = await handleSemanticSearch({ query: 'grocery delivery', location: 'Dhaka', limit: 25 }, service)
+    const payload = JSON.parse(result.content[0].type === 'text' ? result.content[0].text : '{}')
+
+    expect(searchParams).toEqual({ query: 'grocery delivery', location: 'Dhaka', limit: 25 })
+    expect(payload.total).toBe(1)
+    expect(payload.companies[0]).toMatchObject({
+      name: 'Chaldal',
+      slug: 'chaldal',
+      location: 'Dhaka, Bangladesh'
     })
   })
 })

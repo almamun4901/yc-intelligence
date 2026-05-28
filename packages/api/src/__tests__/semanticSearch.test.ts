@@ -11,7 +11,7 @@ describe('API semantic search routes', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: '/search/semantic?query=AI%20developer%20infrastructure&batch=W24&status=Active&industry=Developer%20Tools&isHiring=true&limit=10&offset=5'
+      url: '/search/semantic?query=AI%20developer%20infrastructure&batch=W24&status=Active&industry=Developer%20Tools&location=Dhaka&isHiring=true&limit=10&offset=5'
     })
 
     expect(response.statusCode).toBe(200)
@@ -20,6 +20,7 @@ describe('API semantic search routes', () => {
       batch: 'W24',
       status: 'Active',
       industry: 'Developer Tools',
+      location: 'Dhaka',
       isHiring: true,
       limit: 10,
       offset: 5

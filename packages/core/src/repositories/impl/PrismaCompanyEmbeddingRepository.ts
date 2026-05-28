@@ -107,6 +107,10 @@ export class PrismaCompanyEmbeddingRepository implements ICompanyEmbeddingReposi
       values.push(params.industry)
       filters.push(`c."tags" @> ARRAY[$${values.length}]::TEXT[]`)
     }
+    if (params.location) {
+      values.push(`%${escapeLike(params.location)}%`)
+      filters.push(`c."location" ILIKE $${values.length} ESCAPE '\\'`)
+    }
     if (params.isHiring !== undefined) {
       values.push(params.isHiring)
       filters.push(`c."isHiring" = $${values.length}`)
@@ -195,3 +199,5 @@ const toVectorLiteral = (embedding: number[]): string => {
     return value
   }).join(',')}]`
 }
+
+const escapeLike = (value: string): string => value.replace(/[\\%_]/g, (match) => `\\${match}`)

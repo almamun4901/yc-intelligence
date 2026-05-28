@@ -62,6 +62,7 @@ describe('EmbeddingService', () => {
       query: '  AI infrastructure for developers  ',
       batch: ' W24 ',
       industry: ' Developer Tools ',
+      location: ' Dhaka ',
       isHiring: true,
       limit: 100,
       offset: -10
@@ -73,6 +74,7 @@ describe('EmbeddingService', () => {
     expect(embeddingRepository.lastSearchParams).toMatchObject({
       batch: 'W24',
       industry: 'Developer Tools',
+      location: 'Dhaka',
       isHiring: true,
       limit: 50,
       offset: 0,

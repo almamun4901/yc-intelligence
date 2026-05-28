@@ -34,7 +34,8 @@ export class YCTransformer {
         normalizeString(raw.short_description),
       website: normalizeString(raw.website) ?? normalizeString(raw.website_url),
       teamSize: normalizeTeamSize(raw.teamSize ?? raw.team_size),
-      isHiring: normalizeBoolean(raw.is_hiring) ?? normalizeBoolean(raw.isHiring) ?? false,
+      isHiring:
+        normalizeBoolean(raw.is_hiring) ?? normalizeBoolean(raw.isHiring) ?? includesString(raw.badges, 'isHiring'),
       tags: mergeStringArrays(raw.tags, raw.industries),
       location: firstString(raw.locations) ?? normalizeString(raw.location),
       rawData: raw
@@ -119,6 +120,11 @@ function normalizeStringArray(value: unknown): string[] {
 
 function mergeStringArrays(...values: unknown[]): string[] {
   return Array.from(new Set(values.flatMap((value) => normalizeStringArray(value))))
+}
+
+function includesString(value: unknown, needle: string): boolean {
+  if (!Array.isArray(value)) return false
+  return value.some((item) => normalizeString(item) === needle)
 }
 
 function firstString(value: unknown): string | null {

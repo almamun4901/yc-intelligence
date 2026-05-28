@@ -10,6 +10,7 @@ export const semanticSearchInputSchema = {
   batch: z.string().optional(),
   status: companyStatusSchema.optional(),
   industry: z.string().optional(),
+  location: z.string().optional(),
   isHiring: z.boolean().optional(),
   limit: z.number().int().min(0).optional(),
   offset: z.number().int().min(0).optional()
@@ -21,7 +22,7 @@ export const registerSemanticTools = (server: ToolServer, semanticService: Seman
     {
       title: 'Semantic search YC companies',
       description:
-        'Find YC companies by natural-language intent, optionally constrained by batch, status, industry, and hiring status.',
+        'Find YC companies by natural-language intent, optionally constrained by batch, status, industry, location, and hiring status.',
       inputSchema: semanticSearchInputSchema
     },
     async (input: SemanticCompanySearchParams) => handleSemanticSearch(input, semanticService)
