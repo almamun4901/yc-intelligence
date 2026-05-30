@@ -1,11 +1,11 @@
 import { createLogger } from '../lib/logger'
 import type { CompanyStatus } from '../domain'
 import type { EmbeddingRefreshOptions, EmbeddingRefreshResult } from '../services'
-import type { HNFetchResult, HNFetcherOptions, JobBoardFetchResult, YCFetchResult } from './fetchers'
+import type { HNFetchResult, HNFetcherOptions, JobBoardFetchResult, YCFetchResult, YCFounderEnrichmentResult } from './fetchers'
 
 const logger = createLogger('PipelineOrchestrator')
 
-export const PIPELINE_STAGES = ['companies', 'jobs', 'hn', 'embeddings'] as const
+export const PIPELINE_STAGES = ['companies', 'founders', 'jobs', 'hn', 'embeddings'] as const
 
 export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 export type PipelineMode = 'seed' | 'refresh'
@@ -16,6 +16,7 @@ export interface PipelineStageRunner<T> {
 
 export interface PipelineOrchestratorDependencies {
   companies: PipelineStageRunner<YCFetchResult>
+  founders: PipelineStageRunner<YCFounderEnrichmentResult>
   jobs: PipelineStageRunner<JobBoardFetchResult>
   hn: PipelineStageRunner<HNFetchResult>
   embeddings: PipelineStageRunner<EmbeddingRefreshResult>
@@ -28,6 +29,7 @@ export interface PipelineRunOptions {
 
 export type PipelineStageResult =
   | { stage: 'companies'; result: YCFetchResult }
+  | { stage: 'founders'; result: YCFounderEnrichmentResult }
   | { stage: 'jobs'; result: JobBoardFetchResult }
   | { stage: 'hn'; result: HNFetchResult }
   | { stage: 'embeddings'; result: EmbeddingRefreshResult }
@@ -42,6 +44,8 @@ export interface PipelineRunResult {
 export interface PipelineRuntimeOptions {
   jobLimit?: number
   jobOffset?: number
+  founderLimit?: number
+  founderOffset?: number
   hnLimit?: number
   hnLookbackDays?: number
   hnMaxPagesPerCompany?: number
@@ -140,6 +144,8 @@ export const createPipelineRunOptions = (env: NodeJS.ProcessEnv = process.env): 
 export const createPipelineRuntimeOptions = (env: NodeJS.ProcessEnv = process.env): PipelineRuntimeOptions => ({
   jobLimit: parsePositiveInteger(env.JOB_PIPELINE_LIMIT),
   jobOffset: parseNonNegativeInteger(env.JOB_PIPELINE_OFFSET),
+  founderLimit: parsePositiveInteger(env.FOUNDER_PIPELINE_LIMIT),
+  founderOffset: parseNonNegativeInteger(env.FOUNDER_PIPELINE_OFFSET),
   hnLimit: parsePositiveInteger(env.HN_PIPELINE_LIMIT),
   hnLookbackDays: parsePositiveInteger(env.HN_LOOKBACK_DAYS),
   hnMaxPagesPerCompany: parsePositiveInteger(env.HN_MAX_PAGES_PER_COMPANY),
@@ -167,6 +173,11 @@ export const createHNFetcherOptions = (options: PipelineRuntimeOptions): HNFetch
 export const createJobFetcherOptions = (options: PipelineRuntimeOptions): { maxCompanies?: number; offset?: number } => ({
   maxCompanies: options.jobLimit,
   offset: options.jobOffset
+})
+
+export const createFounderEnricherOptions = (options: PipelineRuntimeOptions): { maxCompanies?: number; offset?: number } => ({
+  maxCompanies: options.founderLimit,
+  offset: options.founderOffset
 })
 
 const parsePositiveInteger = (value: string | undefined): number | undefined => {

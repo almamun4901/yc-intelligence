@@ -2,8 +2,8 @@
 
 import { FormEvent, UIEvent, useEffect, useMemo, useRef, useState } from 'react'
 
-type View = 'companies' | 'jobs'
-type NavKey = 'search' | 'companies' | 'jobs' | 'hn' | 'pipeline' | 'saved'
+type View = 'companies' | 'jobs' | 'founders'
+type NavKey = 'search' | 'companies' | 'jobs' | 'founders' | 'pipeline' | 'saved'
 type StatusFilter = 'All' | 'Active' | 'Acquired' | 'Inactive'
 type LoadState = 'idle' | 'loading' | 'success' | 'error'
 
@@ -55,6 +55,27 @@ interface JobSummary {
   fetchedAt: string
 }
 
+interface FounderSummary {
+  id: string
+  companyId: string
+  name: string
+  linkedinUrl: string | null
+  previousEmployers: string[]
+  schools: string[]
+  company: {
+    name: string
+    slug: string
+    batch: string | null
+    status: string | null
+    shortDescription: string | null
+    website: string | null
+    isHiring: boolean
+    tags: string[]
+    location: string | null
+  }
+  createdAt: string
+}
+
 interface CompanySearchResponse {
   total: number
   count: number
@@ -67,6 +88,12 @@ interface JobSearchResponse {
   jobs: JobSummary[]
 }
 
+interface FounderSearchResponse {
+  total: number
+  count: number
+  founders: FounderSummary[]
+}
+
 interface CompanyDetailResponse {
   found: boolean
   company?: CompanyDetail
@@ -77,7 +104,7 @@ const navItems: Array<{ key: NavKey; label: string; view: View | 'static' }> = [
   { key: 'search', label: 'Search', view: 'companies' },
   { key: 'companies', label: 'Companies', view: 'companies' },
   { key: 'jobs', label: 'Jobs', view: 'jobs' },
-  { key: 'hn', label: 'HN Activity', view: 'static' },
+  { key: 'founders', label: 'Founders', view: 'founders' },
   { key: 'pipeline', label: 'Pipeline', view: 'static' },
   { key: 'saved', label: 'Saved Searches', view: 'static' }
 ]
@@ -95,14 +122,18 @@ export function Dashboard() {
   const [industry, setIndustry] = useState('')
   const [location, setLocation] = useState('')
   const [techInput, setTechInput] = useState('')
+  const [previousEmployer, setPreviousEmployer] = useState('')
+  const [school, setSchool] = useState('')
   const [status, setStatus] = useState<StatusFilter>('All')
   const [isHiring, setIsHiring] = useState(false)
   const [isRemote, setIsRemote] = useState(false)
   const [companies, setCompanies] = useState<CompanySummary[]>([])
   const [jobs, setJobs] = useState<JobSummary[]>([])
+  const [founders, setFounders] = useState<FounderSummary[]>([])
   const [companyTotal, setCompanyTotal] = useState(0)
   const [hiringCompanyTotal, setHiringCompanyTotal] = useState(0)
   const [jobTotal, setJobTotal] = useState(0)
+  const [founderTotal, setFounderTotal] = useState(0)
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -123,13 +154,13 @@ export function Dashboard() {
   const activeFilters = [
     batch,
     industry,
-    location,
-    status !== 'All' ? status : '',
-    isHiring ? 'Hiring' : '',
-    isRemote ? 'Remote' : ''
-  ]
-    .filter(Boolean)
-    .length
+    view !== 'founders' ? location : '',
+    view === 'founders' ? previousEmployer : '',
+    view === 'founders' ? school : '',
+    view === 'companies' && status !== 'All' ? status : '',
+    view !== 'founders' && isHiring ? 'Hiring' : '',
+    view === 'jobs' && isRemote ? 'Remote' : ''
+  ].filter(Boolean).length
 
   const pageKey = useMemo(
     () =>
@@ -139,12 +170,14 @@ export function Dashboard() {
         isHiring,
         isRemote,
         location,
+        previousEmployer,
+        school,
         status,
         submittedQuery,
         techStack,
         view
       }),
-    [batch, industry, isHiring, isRemote, location, status, submittedQuery, techStack, view]
+    [batch, industry, isHiring, isRemote, location, previousEmployer, school, status, submittedQuery, techStack, view]
   )
   const activePageKeyRef = useRef(pageKey)
 
@@ -165,6 +198,13 @@ export function Dashboard() {
           )
           setJobs(data.jobs)
           setJobTotal(data.total)
+        } else if (view === 'founders') {
+          const data = await fetchFounders(
+            { batch, industry, limit: PAGE_SIZE, offset: 0, previousEmployer, query: submittedQuery, school },
+            controller.signal
+          )
+          setFounders(data.founders)
+          setFounderTotal(data.total)
         } else {
           const [data, hiringData] = await Promise.all([
             fetchCompanies(
@@ -190,7 +230,7 @@ export function Dashboard() {
     void load()
 
     return () => controller.abort()
-  }, [batch, industry, isHiring, isRemote, location, pageKey, status, submittedQuery, techStack, view])
+  }, [batch, industry, isHiring, isRemote, location, pageKey, previousEmployer, school, status, submittedQuery, techStack, view])
 
   useEffect(() => {
     if (!selectedSlug) {
@@ -232,6 +272,8 @@ export function Dashboard() {
     setIndustry('')
     setLocation('')
     setTechInput('')
+    setPreviousEmployer('')
+    setSchool('')
     setStatus('All')
     setIsHiring(false)
     setIsRemote(false)
@@ -242,8 +284,8 @@ export function Dashboard() {
   async function loadMoreResults() {
     if (loadState === 'loading' || isLoadingMore) return
 
-    const offset = view === 'jobs' ? jobs.length : companies.length
-    const total = view === 'jobs' ? jobTotal : companyTotal
+    const offset = view === 'jobs' ? jobs.length : view === 'founders' ? founders.length : companies.length
+    const total = view === 'jobs' ? jobTotal : view === 'founders' ? founderTotal : companyTotal
     if (offset >= total) return
 
     const loadKey = pageKey
@@ -260,6 +302,14 @@ export function Dashboard() {
         if (activePageKeyRef.current !== loadKey) return
         setJobs((current) => mergeByKey(current, data.jobs, (job) => job.id))
         setJobTotal(data.total)
+      } else if (view === 'founders') {
+        const data = await fetchFounders(
+          { batch, industry, limit: PAGE_SIZE, offset, previousEmployer, query: submittedQuery, school },
+          controller.signal
+        )
+        if (activePageKeyRef.current !== loadKey) return
+        setFounders((current) => mergeByKey(current, data.founders, (founder) => founder.id))
+        setFounderTotal(data.total)
       } else {
         const data = await fetchCompanies(
           { batch, industry, isHiring, limit: PAGE_SIZE, location, offset, query: submittedQuery, status },
@@ -282,6 +332,7 @@ export function Dashboard() {
     { label: 'Indexed companies', value: formatCount(companyTotal), detail: `${companies.length} loaded` },
     { label: 'Actively hiring', value: formatCount(hiringCompanyTotal), detail: 'Dataset total' },
     { label: 'Open jobs', value: formatCount(jobTotal), detail: `${jobs.length} loaded` },
+    { label: 'Founder records', value: formatCount(founderTotal), detail: `${founders.length} loaded` },
     { label: 'Active filters', value: String(activeFilters), detail: submittedQuery ? 'Semantic query on' : 'Structured search' },
     { label: 'Last refresh', value: lastRefresh ? formatTime(lastRefresh) : '-', detail: loadState === 'loading' ? 'Loading' : 'Live API' }
   ]
@@ -334,6 +385,8 @@ export function Dashboard() {
               placeholder={
                 view === 'jobs'
                   ? 'Search job titles - backend, platform, founding engineer...'
+                  : view === 'founders'
+                    ? 'Search founders or companies - Stripe alumni, MIT founders...'
                   : 'Ask anything - companies hiring Rust engineers in Berlin, AI infra from W24...'
               }
               value={queryInput}
@@ -390,19 +443,38 @@ export function Dashboard() {
               ))}
             </div>
           ) : null}
-          <button className={isHiring ? 'pill active-pill' : 'pill'} onClick={() => setIsHiring((value) => !value)} type="button">
-            Hiring
-          </button>
-          <button className={isRemote ? 'pill active-pill' : 'pill'} onClick={() => setIsRemote((value) => !value)} type="button">
-            Remote
-          </button>
-          <input
-            aria-label="Technology stack"
-            onChange={(event) => setTechInput(event.target.value)}
-            placeholder="Tech stack..."
-            value={techInput}
-          />
-          <input aria-label="Location" onChange={(event) => setLocation(event.target.value)} placeholder="Location..." value={location} />
+          {view !== 'founders' ? (
+            <button className={isHiring ? 'pill active-pill' : 'pill'} onClick={() => setIsHiring((value) => !value)} type="button">
+              Hiring
+            </button>
+          ) : null}
+          {view === 'jobs' ? (
+            <button className={isRemote ? 'pill active-pill' : 'pill'} onClick={() => setIsRemote((value) => !value)} type="button">
+              Remote
+            </button>
+          ) : null}
+          {view === 'jobs' ? (
+            <input
+              aria-label="Technology stack"
+              onChange={(event) => setTechInput(event.target.value)}
+              placeholder="Tech stack..."
+              value={techInput}
+            />
+          ) : null}
+          {view === 'founders' ? (
+            <>
+              <input
+                aria-label="Previous employer"
+                onChange={(event) => setPreviousEmployer(event.target.value)}
+                placeholder="Previous employer..."
+                value={previousEmployer}
+              />
+              <input aria-label="School" onChange={(event) => setSchool(event.target.value)} placeholder="School..." value={school} />
+            </>
+          ) : null}
+          {view !== 'founders' ? (
+            <input aria-label="Location" onChange={(event) => setLocation(event.target.value)} placeholder="Location..." value={location} />
+          ) : null}
           <button className="link-button" onClick={resetFilters} type="button">
             Reset
           </button>
@@ -410,10 +482,25 @@ export function Dashboard() {
 
         {error ? <div className="notice error-notice">{error}</div> : null}
         <div className="content-grid">
-          <section className="results-panel" aria-label={view === 'jobs' ? 'Job results' : 'Company results'}>
+          <section
+            className="results-panel"
+            aria-label={view === 'jobs' ? 'Job results' : view === 'founders' ? 'Founder results' : 'Company results'}
+          >
             <div className="results-header">
-              <span>{loadState === 'loading' ? 'Loading' : `${formatCount(view === 'jobs' ? jobTotal : companyTotal)} results`}</span>
-              <strong>{view === 'jobs' ? 'Open YC jobs' : submittedQuery ? 'Semantic company search' : 'Company directory'}</strong>
+              <span>
+                {loadState === 'loading'
+                  ? 'Loading'
+                  : `${formatCount(view === 'jobs' ? jobTotal : view === 'founders' ? founderTotal : companyTotal)} results`}
+              </span>
+              <strong>
+                {view === 'jobs'
+                  ? 'Open YC jobs'
+                  : view === 'founders'
+                    ? 'YC founder directory'
+                    : submittedQuery
+                      ? 'Semantic company search'
+                      : 'Company directory'}
+              </strong>
             </div>
             {view === 'jobs' ? (
               <JobsTable
@@ -422,6 +509,15 @@ export function Dashboard() {
                 loading={loadState === 'loading'}
                 loadingMore={isLoadingMore}
                 onLoadMore={loadMoreResults}
+              />
+            ) : view === 'founders' ? (
+              <FoundersTable
+                founders={founders}
+                hasMore={founders.length < founderTotal}
+                loading={loadState === 'loading'}
+                loadingMore={isLoadingMore}
+                onLoadMore={loadMoreResults}
+                onSelectCompany={setSelectedSlug}
               />
             ) : (
               <CompaniesTable
@@ -551,6 +647,77 @@ function JobsTable({
               <td>
                 {job.applyUrl ? (
                   <a className="table-link" href={job.applyUrl} rel="noreferrer" target="_blank">
+                    Open
+                  </a>
+                ) : (
+                  '-'
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <InfiniteScrollStatus hasMore={hasMore} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+    </div>
+  )
+}
+
+function FoundersTable({
+  founders,
+  hasMore,
+  loading,
+  loadingMore,
+  onLoadMore,
+  onSelectCompany
+}: {
+  founders: FounderSummary[]
+  hasMore: boolean
+  loading: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
+  onSelectCompany: (slug: string) => void
+}) {
+  if (!loading && founders.length === 0) return <EmptyState label="No founders match the current filters." />
+
+  return (
+    <div className="table-wrap" onScroll={(event) => handleResultsScroll(event, hasMore, loadingMore, onLoadMore)}>
+      <table>
+        <thead>
+          <tr>
+            <th>Founder</th>
+            <th>Company</th>
+            <th>Batch</th>
+            <th>Background</th>
+            <th>School</th>
+            <th>Location</th>
+            <th>Profile</th>
+          </tr>
+        </thead>
+        <tbody>
+          {founders.map((founder) => (
+            <tr key={founder.id}>
+              <td>
+                <strong>{founder.name}</strong>
+              </td>
+              <td>
+                <button className="company-cell row-button" onClick={() => onSelectCompany(founder.company.slug)} type="button">
+                  <span>
+                    <strong>{founder.company.name}</strong>
+                    <small>{founder.company.shortDescription ?? founder.company.status ?? '-'}</small>
+                  </span>
+                </button>
+              </td>
+              <td>{founder.company.batch ?? '-'}</td>
+              <td>
+                <TagRow tags={founder.previousEmployers} />
+              </td>
+              <td>
+                <TagRow tags={founder.schools} />
+              </td>
+              <td>{founder.company.location ?? '-'}</td>
+              <td>
+                {founder.linkedinUrl ? (
+                  <a className="table-link" href={founder.linkedinUrl} rel="noreferrer" target="_blank">
                     Open
                   </a>
                 ) : (
@@ -806,6 +973,28 @@ async function fetchJobs(
   if (filters.techStack.length) params.set('techStack', filters.techStack.join(','))
 
   return apiGet<JobSearchResponse>(`/api/jobs?${params.toString()}`, signal)
+}
+
+async function fetchFounders(
+  filters: {
+    batch: string
+    industry: string
+    limit: number
+    offset: number
+    previousEmployer: string
+    query: string
+    school: string
+  },
+  signal: AbortSignal
+) {
+  const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
+  if (filters.batch) params.set('batch', filters.batch)
+  if (filters.industry) params.set('industry', filters.industry)
+  if (filters.previousEmployer) params.set('previousEmployer', filters.previousEmployer)
+  if (filters.school) params.set('school', filters.school)
+  if (filters.query) params.set('query', filters.query)
+
+  return apiGet<FounderSearchResponse>(`/api/founders?${params.toString()}`, signal)
 }
 
 async function apiGet<T>(path: string, signal: AbortSignal): Promise<T> {
