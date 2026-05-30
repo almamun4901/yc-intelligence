@@ -12,6 +12,7 @@ describe('PipelineOrchestrator', () => {
     const calls: string[] = []
     const orchestrator = new PipelineOrchestrator({
       companies: companiesRunner(calls),
+      founders: foundersRunner(calls),
       jobs: jobsRunner(calls),
       hn: hnRunner(calls),
       embeddings: embeddingsRunner(calls)
@@ -19,15 +20,16 @@ describe('PipelineOrchestrator', () => {
 
     const result = await orchestrator.seed()
 
-    expect(calls).toEqual(['companies', 'jobs', 'hn', 'embeddings'])
+    expect(calls).toEqual(['companies', 'founders', 'jobs', 'hn', 'embeddings'])
     expect(result.mode).toBe('seed')
-    expect(result.stages.map((stage) => stage.stage)).toEqual(['companies', 'jobs', 'hn', 'embeddings'])
+    expect(result.stages.map((stage) => stage.stage)).toEqual(['companies', 'founders', 'jobs', 'hn', 'embeddings'])
   })
 
   it('supports selected stages and resume-from semantics', async () => {
     const calls: string[] = []
     const orchestrator = new PipelineOrchestrator({
       companies: companiesRunner(calls),
+      founders: foundersRunner(calls),
       jobs: jobsRunner(calls),
       hn: hnRunner(calls),
       embeddings: embeddingsRunner(calls)
@@ -46,6 +48,7 @@ describe('PipelineOrchestrator', () => {
     const calls: string[] = []
     const orchestrator = new PipelineOrchestrator({
       companies: companiesRunner(calls),
+      founders: foundersRunner(calls),
       jobs: {
         run: vi.fn(async () => {
           calls.push('jobs')
@@ -57,13 +60,13 @@ describe('PipelineOrchestrator', () => {
     })
 
     await expect(orchestrator.refresh()).rejects.toThrow('job pipeline failed')
-    expect(calls).toEqual(['companies', 'jobs'])
+    expect(calls).toEqual(['companies', 'founders', 'jobs'])
   })
 })
 
 describe('pipeline option parsing', () => {
   it('parses comma-separated stage lists', () => {
-    expect(parsePipelineStages('companies, jobs,hn, jobs')).toEqual(['companies', 'jobs', 'hn'])
+    expect(parsePipelineStages('companies, founders,jobs,hn, jobs')).toEqual(['companies', 'founders', 'jobs', 'hn'])
   })
 
   it('rejects unknown stages', () => {
@@ -87,6 +90,8 @@ describe('pipeline option parsing', () => {
       createPipelineRuntimeOptions({
         JOB_PIPELINE_LIMIT: '10',
         JOB_PIPELINE_OFFSET: '5',
+        FOUNDER_PIPELINE_LIMIT: '12',
+        FOUNDER_PIPELINE_OFFSET: '3',
         HN_PIPELINE_LIMIT: '20',
         HN_LOOKBACK_DAYS: '14',
         HN_MAX_PAGES_PER_COMPANY: '2',
@@ -99,6 +104,8 @@ describe('pipeline option parsing', () => {
     ).toEqual({
       jobLimit: 10,
       jobOffset: 5,
+      founderLimit: 12,
+      founderOffset: 3,
       hnLimit: 20,
       hnLookbackDays: 14,
       hnMaxPagesPerCompany: 2,
@@ -115,6 +122,24 @@ const companiesRunner = (calls: string[]) => ({
   run: vi.fn(async () => {
     calls.push('companies')
     return { pagesFetched: 1, rawCompaniesFetched: 1, companiesUpserted: 1, foundersUpserted: 0 }
+  })
+})
+
+const foundersRunner = (calls: string[]) => ({
+  run: vi.fn(async () => {
+    calls.push('founders')
+    return {
+      totalCompanies: 1,
+      offset: 0,
+      limit: 1,
+      processed: 1,
+      pagesFetched: 1,
+      foundersFound: 1,
+      foundersUpserted: 1,
+      companiesWithFounders: 1,
+      companiesWithoutFounders: 0,
+      errors: 0
+    }
   })
 })
 

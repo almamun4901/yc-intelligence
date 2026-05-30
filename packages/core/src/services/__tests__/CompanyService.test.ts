@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Company, CompanySearchParams, Founder } from '../../domain'
+import type { Company, CompanySearchParams, Founder, FounderWithCompany } from '../../domain'
 import type { ICompanyRepository, IFounderRepository, UpsertCompanyInput } from '../../repositories'
 import { CompanyService } from '../CompanyService'
 
@@ -100,6 +100,10 @@ class InMemoryFounderRepository implements IFounderRepository {
 
   async findByCompanyId(companyId: string): Promise<Founder[]> {
     return this.founders.filter((founder) => founder.companyId === companyId)
+  }
+
+  async search(): Promise<{ data: FounderWithCompany[]; total: number }> {
+    return { data: [], total: 0 }
   }
 
   async upsertMany(founders: Parameters<IFounderRepository['upsertMany']>[0]): Promise<number> {

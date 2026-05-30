@@ -9,9 +9,10 @@ import {
   PrismaRefreshLogRepository
 } from '../repositories/impl'
 import { EmbeddingService } from '../services'
-import { HNFetcher, JobBoardFetcher, YCFetcher } from './fetchers'
+import { HNFetcher, JobBoardFetcher, YCFetcher, YCFounderEnricher } from './fetchers'
 import {
   createEmbeddingRefreshOptions,
+  createFounderEnricherOptions,
   createHNFetcherOptions,
   createJobFetcherOptions,
   createPipelineRunOptions,
@@ -22,7 +23,7 @@ import {
   type PipelineStage
 } from './index'
 
-const STAGE_COMMANDS = ['companies', 'jobs', 'hn', 'embeddings'] as const
+const STAGE_COMMANDS = ['companies', 'founders', 'jobs', 'hn', 'embeddings'] as const
 const RUN_COMMANDS = ['seed', 'refresh', 'schedule'] as const
 type StageCommand = (typeof STAGE_COMMANDS)[number]
 type RunCommand = (typeof RUN_COMMANDS)[number]
@@ -36,13 +37,15 @@ async function main() {
   const prisma = new PrismaClient()
   try {
     const companyRepo = new PrismaCompanyRepository(prisma)
+    const founderRepo = new PrismaFounderRepository(prisma)
     const runtimeOptions = createPipelineRuntimeOptions()
     const orchestrator = new PipelineOrchestrator({
       companies: new YCFetcher(
         companyRepo,
-        new PrismaFounderRepository(prisma),
+        founderRepo,
         new PrismaRefreshLogRepository(prisma)
       ),
+      founders: new YCFounderEnricher(companyRepo, founderRepo, createFounderEnricherOptions(runtimeOptions)),
       jobs: new JobBoardFetcher(companyRepo, new PrismaJobRepository(prisma), createJobFetcherOptions(runtimeOptions)),
       hn: new HNFetcher(companyRepo, new PrismaHNPostRepository(prisma), createHNFetcherOptions(runtimeOptions)),
       embeddings: {

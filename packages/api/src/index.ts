@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import {
   CompanyService,
   EmbeddingService,
+  FounderService,
   JobService,
   PrismaCompanyEmbeddingRepository,
   PrismaCompanyRepository,
@@ -15,11 +16,13 @@ import {
 } from '@yc-intelligence/core'
 import { createRedisResponseCache, type ApiLogger, type ResponseCache } from './cache'
 import { registerCompanyRoutes, type CompanyApiService } from './routes/companies'
+import { registerFounderRoutes, type FounderApiService } from './routes/founders'
 import { registerJobRoutes, type JobApiService } from './routes/jobs'
 import { registerSemanticSearchRoutes, type SemanticSearchApiService } from './routes/semanticSearch'
 
 interface ServerOptions {
   companyService?: CompanyApiService
+  founderService?: FounderApiService
   jobService?: JobApiService
   semanticSearchService?: SemanticSearchApiService
   cache?: ResponseCache
@@ -46,6 +49,12 @@ export const buildServer = (options: ServerOptions = {}) => {
     })
   }
 
+  if (options.founderService) {
+    registerFounderRoutes(app, {
+      founderService: options.founderService
+    })
+  }
+
   if (options.semanticSearchService) {
     registerSemanticSearchRoutes(app, {
       semanticSearchService: options.semanticSearchService
@@ -64,11 +73,13 @@ export const buildServer = (options: ServerOptions = {}) => {
 export const createProductionServer = () => {
   const prisma = new PrismaClient()
   const hnPostRepository = new PrismaHNPostRepository(prisma)
+  const founderRepository = new PrismaFounderRepository(prisma)
   const companyService = new CompanyService(
     new PrismaCompanyRepository(prisma),
-    new PrismaFounderRepository(prisma),
+    founderRepository,
     hnPostRepository
   )
+  const founderService = new FounderService(founderRepository)
   const jobService = new JobService(new PrismaJobRepository(prisma))
   const semanticSearchService = new EmbeddingService(
     new PrismaCompanyRepository(prisma),
@@ -79,7 +90,7 @@ export const createProductionServer = () => {
   )
   const logger = createLogger('api')
   const cache = createRedisResponseCache(config.REDIS_URL, logger)
-  const app = buildServer({ companyService, jobService, semanticSearchService, cache, logger })
+  const app = buildServer({ companyService, founderService, jobService, semanticSearchService, cache, logger })
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect()

@@ -10,6 +10,7 @@
     "lint": "eslint src --ext .ts",
     "pipeline:companies": "node dist/pipeline/cli.js companies",
     "pipeline:embeddings": "node dist/pipeline/cli.js embeddings",
+    "pipeline:founders": "node dist/pipeline/cli.js founders",
     "pipeline:hn": "node dist/pipeline/cli.js hn",
     "pipeline:jobs": "node dist/pipeline/cli.js jobs",
     "pipeline:refresh": "node dist/pipeline/cli.js refresh",

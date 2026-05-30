@@ -120,6 +120,10 @@ class MockFounderRepository implements IFounderRepository {
     return []
   }
 
+  async search() {
+    return { data: [], total: 0 }
+  }
+
   async upsertMany(founders: UpsertFounderInput[]) {
     for (const founder of founders) {
       this.calls.push(`founder:${founder.companyId}:${founder.name}`)

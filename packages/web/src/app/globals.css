@@ -327,7 +327,7 @@ a:focus-visible {
 
 .metric-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(138px, 1fr));
+  grid-template-columns: repeat(6, minmax(126px, 1fr));
   border-bottom: 1px solid var(--color-line);
   background: color-mix(in srgb, var(--color-surface-raised) 76%, transparent);
 }
