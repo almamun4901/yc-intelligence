@@ -122,6 +122,7 @@ export function Dashboard() {
   const [industry, setIndustry] = useState('')
   const [location, setLocation] = useState('')
   const [techInput, setTechInput] = useState('')
+  const [founderCompany, setFounderCompany] = useState('')
   const [previousEmployer, setPreviousEmployer] = useState('')
   const [school, setSchool] = useState('')
   const [status, setStatus] = useState<StatusFilter>('All')
@@ -154,6 +155,7 @@ export function Dashboard() {
   const activeFilters = [
     batch,
     industry,
+    view === 'founders' ? founderCompany : '',
     view !== 'founders' ? location : '',
     view === 'founders' ? previousEmployer : '',
     view === 'founders' ? school : '',
@@ -166,6 +168,7 @@ export function Dashboard() {
     () =>
       JSON.stringify({
         batch,
+        founderCompany,
         industry,
         isHiring,
         isRemote,
@@ -177,7 +180,7 @@ export function Dashboard() {
         techStack,
         view
       }),
-    [batch, industry, isHiring, isRemote, location, previousEmployer, school, status, submittedQuery, techStack, view]
+    [batch, founderCompany, industry, isHiring, isRemote, location, previousEmployer, school, status, submittedQuery, techStack, view]
   )
   const activePageKeyRef = useRef(pageKey)
 
@@ -192,30 +195,36 @@ export function Dashboard() {
 
       try {
         if (view === 'jobs') {
-          const data = await fetchJobs(
-            { batch, industry, isRemote, limit: PAGE_SIZE, offset: 0, techStack, query: submittedQuery },
-            controller.signal
-          )
+          const [data, founderCount] = await Promise.all([
+            fetchJobs(
+              { batch, industry, isRemote, limit: PAGE_SIZE, offset: 0, techStack, query: submittedQuery },
+              controller.signal
+            ),
+            fetchFounderCount(controller.signal)
+          ])
           setJobs(data.jobs)
           setJobTotal(data.total)
+          setFounderTotal(founderCount.total)
         } else if (view === 'founders') {
           const data = await fetchFounders(
-            { batch, industry, limit: PAGE_SIZE, offset: 0, previousEmployer, query: submittedQuery, school },
+            { batch, company: founderCompany, industry, limit: PAGE_SIZE, offset: 0, previousEmployer, query: submittedQuery, school },
             controller.signal
           )
           setFounders(data.founders)
           setFounderTotal(data.total)
         } else {
-          const [data, hiringData] = await Promise.all([
+          const [data, hiringData, founderCount] = await Promise.all([
             fetchCompanies(
               { batch, industry, isHiring, limit: PAGE_SIZE, location, offset: 0, query: submittedQuery, status },
               controller.signal
             ),
-            fetchHiringCompanyCount(controller.signal)
+            fetchHiringCompanyCount(controller.signal),
+            fetchFounderCount(controller.signal)
           ])
           setCompanies(data.companies)
           setCompanyTotal(data.total)
           setHiringCompanyTotal(hiringData.total)
+          setFounderTotal(founderCount.total)
         }
 
         setLoadState('success')
@@ -230,7 +239,7 @@ export function Dashboard() {
     void load()
 
     return () => controller.abort()
-  }, [batch, industry, isHiring, isRemote, location, pageKey, previousEmployer, school, status, submittedQuery, techStack, view])
+  }, [batch, founderCompany, industry, isHiring, isRemote, location, pageKey, previousEmployer, school, status, submittedQuery, techStack, view])
 
   useEffect(() => {
     if (!selectedSlug) {
@@ -272,6 +281,7 @@ export function Dashboard() {
     setIndustry('')
     setLocation('')
     setTechInput('')
+    setFounderCompany('')
     setPreviousEmployer('')
     setSchool('')
     setStatus('All')
@@ -304,7 +314,7 @@ export function Dashboard() {
         setJobTotal(data.total)
       } else if (view === 'founders') {
         const data = await fetchFounders(
-          { batch, industry, limit: PAGE_SIZE, offset, previousEmployer, query: submittedQuery, school },
+          { batch, company: founderCompany, industry, limit: PAGE_SIZE, offset, previousEmployer, query: submittedQuery, school },
           controller.signal
         )
         if (activePageKeyRef.current !== loadKey) return
@@ -332,7 +342,7 @@ export function Dashboard() {
     { label: 'Indexed companies', value: formatCount(companyTotal), detail: `${companies.length} loaded` },
     { label: 'Actively hiring', value: formatCount(hiringCompanyTotal), detail: 'Dataset total' },
     { label: 'Open jobs', value: formatCount(jobTotal), detail: `${jobs.length} loaded` },
-    { label: 'Founder records', value: formatCount(founderTotal), detail: `${founders.length} loaded` },
+    { label: 'Founder records', value: formatCount(founderTotal), detail: view === 'founders' ? `${founders.length} loaded` : 'Dataset total' },
     { label: 'Active filters', value: String(activeFilters), detail: submittedQuery ? 'Semantic query on' : 'Structured search' },
     { label: 'Last refresh', value: lastRefresh ? formatTime(lastRefresh) : '-', detail: loadState === 'loading' ? 'Loading' : 'Live API' }
   ]
@@ -463,6 +473,12 @@ export function Dashboard() {
           ) : null}
           {view === 'founders' ? (
             <>
+              <input
+                aria-label="Founder company"
+                onChange={(event) => setFounderCompany(event.target.value)}
+                placeholder="Company..."
+                value={founderCompany}
+              />
               <input
                 aria-label="Previous employer"
                 onChange={(event) => setPreviousEmployer(event.target.value)}
@@ -687,8 +703,8 @@ function FoundersTable({
             <th>Founder</th>
             <th>Company</th>
             <th>Batch</th>
-            <th>Background</th>
-            <th>School</th>
+            <th>Status</th>
+            <th>Tags</th>
             <th>Location</th>
             <th>Profile</th>
           </tr>
@@ -709,17 +725,17 @@ function FoundersTable({
               </td>
               <td>{founder.company.batch ?? '-'}</td>
               <td>
-                <TagRow tags={founder.previousEmployers} />
+                <span className={founder.company.status === 'Active' ? 'status active-status' : 'status'}>
+                  {founder.company.status ?? '-'}
+                </span>
               </td>
               <td>
-                <TagRow tags={founder.schools} />
+                <TagRow tags={founder.company.tags} />
               </td>
               <td>{founder.company.location ?? '-'}</td>
               <td>
                 {founder.linkedinUrl ? (
-                  <a className="table-link" href={founder.linkedinUrl} rel="noreferrer" target="_blank">
-                    Open
-                  </a>
+                  <LinkedInButton href={founder.linkedinUrl} label={`Open ${founder.name} LinkedIn`} />
                 ) : (
                   '-'
                 )}
@@ -858,9 +874,7 @@ function CompanyInspector({ company, loading }: { company: CompanyDetail | null;
                   <small>{summarizeFounder(founder)}</small>
                 </div>
                 {founder.linkedinUrl ? (
-                  <a href={founder.linkedinUrl} rel="noreferrer" target="_blank" aria-label={`Open ${founder.name} LinkedIn`}>
-                    Open
-                  </a>
+                  <LinkedInButton href={founder.linkedinUrl} label={`Open ${founder.name} LinkedIn`} />
                 ) : null}
               </li>
             ))}
@@ -924,6 +938,14 @@ function EmptyState({ label }: { label: string }) {
   return <div className="empty-state">{label}</div>
 }
 
+function LinkedInButton({ href, label }: { href: string; label: string }) {
+  return (
+    <a className="linkedin-button" href={href} rel="noreferrer" target="_blank" aria-label={label} title="LinkedIn">
+      <span aria-hidden="true">in</span>
+    </a>
+  )
+}
+
 async function fetchCompanies(
   filters: {
     batch: string
@@ -953,6 +975,10 @@ async function fetchHiringCompanyCount(signal: AbortSignal) {
   return apiGet<CompanySearchResponse>('/api/companies?isHiring=true&limit=0', signal)
 }
 
+async function fetchFounderCount(signal: AbortSignal) {
+  return apiGet<FounderSearchResponse>('/api/founders?limit=0', signal)
+}
+
 async function fetchJobs(
   filters: {
     batch: string
@@ -978,6 +1004,7 @@ async function fetchJobs(
 async function fetchFounders(
   filters: {
     batch: string
+    company: string
     industry: string
     limit: number
     offset: number
@@ -989,6 +1016,7 @@ async function fetchFounders(
 ) {
   const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
   if (filters.batch) params.set('batch', filters.batch)
+  if (filters.company) params.set('company', filters.company)
   if (filters.industry) params.set('industry', filters.industry)
   if (filters.previousEmployer) params.set('previousEmployer', filters.previousEmployer)
   if (filters.school) params.set('school', filters.school)

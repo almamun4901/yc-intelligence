@@ -776,6 +776,35 @@ td > strong {
   font-weight: 760;
 }
 
+.linkedin-button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, #0a66c2 72%, var(--color-line));
+  border-radius: var(--radius-1);
+  background: #0a66c2;
+  color: #ffffff;
+  font-family: Arial, var(--font-sans);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.linkedin-button:hover {
+  border-color: #004182;
+  background: #004182;
+}
+
+.linkedin-button:active {
+  transform: translateY(1px);
+}
+
 .primary-link {
   display: inline-flex;
   align-items: center;
