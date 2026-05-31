@@ -4,6 +4,7 @@ import {
   CompanyService,
   EmbeddingService,
   FounderService,
+  HNService,
   JobService,
   PrismaCompanyEmbeddingRepository,
   PrismaCompanyRepository,
@@ -17,12 +18,14 @@ import {
 import { createRedisResponseCache, type ApiLogger, type ResponseCache } from './cache'
 import { registerCompanyRoutes, type CompanyApiService } from './routes/companies'
 import { registerFounderRoutes, type FounderApiService } from './routes/founders'
+import { registerHNActivityRoutes, type HNActivityApiService } from './routes/hnActivity'
 import { registerJobRoutes, type JobApiService } from './routes/jobs'
 import { registerSemanticSearchRoutes, type SemanticSearchApiService } from './routes/semanticSearch'
 
 interface ServerOptions {
   companyService?: CompanyApiService
   founderService?: FounderApiService
+  hnService?: HNActivityApiService
   jobService?: JobApiService
   semanticSearchService?: SemanticSearchApiService
   cache?: ResponseCache
@@ -55,6 +58,12 @@ export const buildServer = (options: ServerOptions = {}) => {
     })
   }
 
+  if (options.hnService) {
+    registerHNActivityRoutes(app, {
+      hnService: options.hnService
+    })
+  }
+
   if (options.semanticSearchService) {
     registerSemanticSearchRoutes(app, {
       semanticSearchService: options.semanticSearchService
@@ -80,6 +89,7 @@ export const createProductionServer = () => {
     hnPostRepository
   )
   const founderService = new FounderService(founderRepository)
+  const hnService = new HNService(hnPostRepository)
   const jobService = new JobService(new PrismaJobRepository(prisma))
   const semanticSearchService = new EmbeddingService(
     new PrismaCompanyRepository(prisma),
@@ -90,7 +100,7 @@ export const createProductionServer = () => {
   )
   const logger = createLogger('api')
   const cache = createRedisResponseCache(config.REDIS_URL, logger)
-  const app = buildServer({ companyService, founderService, jobService, semanticSearchService, cache, logger })
+  const app = buildServer({ companyService, founderService, hnService, jobService, semanticSearchService, cache, logger })
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect()
