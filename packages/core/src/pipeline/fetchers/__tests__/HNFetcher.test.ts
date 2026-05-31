@@ -117,6 +117,43 @@ describe('HNFetcher', () => {
     })
   })
 
+  it('requires stronger evidence for broad company names', async () => {
+    const company = makeCompany({
+      id: 'company-yc',
+      name: 'Y Combinator',
+      slug: 'y-combinator',
+      website: null
+    })
+    const hnRepo = new InMemoryHNPostRepository()
+    const client = makeClient([
+      {
+        hits: [
+          {
+            objectID: '200',
+            story_id: 200,
+            title: 'Ask HN: What happened to Y Combinator interviews?',
+            url: 'https://example.com',
+            points: 125,
+            num_comments: 80,
+            created_at_i: 1778976000
+          }
+        ],
+        nbPages: 1
+      },
+      { hits: [], nbPages: 1 }
+    ])
+    const fetcher = new HNFetcher(new InMemoryCompanyRepository([company]), hnRepo, {
+      client,
+      now: () => new Date('2026-05-24T00:00:00.000Z'),
+      lookbackDays: 30
+    })
+
+    const result = await fetcher.fetchForCompany(company)
+
+    expect(result).toEqual({ postsFound: 0, postsUpserted: 0 })
+    expect(hnRepo.posts).toEqual([])
+  })
+
   it('records per-company failures without throwing', async () => {
     const company = makeCompany()
     const hnRepo = new InMemoryHNPostRepository()

@@ -10,6 +10,7 @@ const HITS_PER_PAGE = 100
 const DEFAULT_LOOKBACK_DAYS = 30
 const CHECKPOINT_OVERLAP_DAYS = 2
 const DEFAULT_MAX_PAGES_PER_COMPANY = 3
+const BROAD_COMPANY_NAMES = new Set(['yc', 'y combinator', 'startup school'])
 const logger = createLogger('HNFetcher')
 
 export interface HNFetchResult {
@@ -226,13 +227,14 @@ const isRelevantHit = (hit: HNSearchHit, company: Company): boolean => {
   const companyName = company.name.toLowerCase()
   const slug = company.slug.toLowerCase()
   const host = hostFromUrl(company.website)?.toLowerCase()
+  const isBroadName = BROAD_COMPANY_NAMES.has(companyName)
 
   if (host && text.includes(host)) return true
-  if (companyName.length >= 4 && text.includes(companyName)) return true
+  if (!isBroadName && companyName.length >= 4 && text.includes(companyName)) return true
   if (slug.length >= 4 && text.includes(slug)) return true
 
   const nameTokens = companyName.split(/[^a-z0-9]+/).filter((token) => token.length >= 4)
-  return nameTokens.length > 0 && nameTokens.every((token) => text.includes(token))
+  return !isBroadName && nameTokens.length > 0 && nameTokens.every((token) => text.includes(token))
 }
 
 const hostFromUrl = (value: string | null | undefined): string | null => {
