@@ -20,6 +20,7 @@ export class HNService {
     const limit = Math.min(Math.max(params.limit ?? DEFAULT_SEARCH_LIMIT, 0), MAX_SEARCH_LIMIT)
     const offset = Math.max(params.offset ?? 0, 0)
     const minPoints = params.minPoints !== undefined ? Math.max(params.minPoints, 0) : undefined
+    const minRelevanceScore = params.minRelevanceScore !== undefined ? Math.max(params.minRelevanceScore, 0) : undefined
 
     return {
       ...(companyId ? { companyId } : {}),
@@ -31,6 +32,7 @@ export class HNService {
       ...(params.since ? { since: params.since } : {}),
       ...(params.until ? { until: params.until } : {}),
       ...(minPoints !== undefined ? { minPoints } : {}),
+      ...(minRelevanceScore !== undefined ? { minRelevanceScore } : {}),
       sort: params.sort ?? (params.since ? 'newest' : 'signal'),
       limit,
       offset

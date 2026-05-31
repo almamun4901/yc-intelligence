@@ -15,6 +15,7 @@ export const getHNActivityInputSchema = {
   postType: hnPostTypeSchema.optional(),
   since: z.string().datetime().optional(),
   minPoints: z.number().int().min(0).optional(),
+  minRelevanceScore: z.number().int().min(0).optional(),
   limit: z.number().int().min(0).optional(),
   offset: z.number().int().min(0).optional()
 }
@@ -27,6 +28,7 @@ type GetHNActivityInput = {
   postType?: HNPostType
   since?: string
   minPoints?: number
+  minRelevanceScore?: number
   limit?: number
   offset?: number
 }
@@ -55,6 +57,7 @@ export const handleGetHNActivity = async (
     postType: input.postType,
     since: input.since ? new Date(input.since) : undefined,
     minPoints: input.minPoints,
+    minRelevanceScore: input.minRelevanceScore,
     limit: input.limit,
     offset: input.offset
   }
@@ -81,6 +84,8 @@ export const handleGetHNActivity = async (
               author: post.author,
               points: post.points,
               comments: post.commentCount,
+              relevanceScore: post.relevanceScore,
+              matchReasons: post.matchReasons,
               postType: post.postType,
               postedAt: post.postedAt.toISOString()
             }))

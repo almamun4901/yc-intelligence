@@ -11,7 +11,10 @@ const DEFAULT_LOOKBACK_DAYS = 30
 const CHECKPOINT_OVERLAP_DAYS = 2
 const DEFAULT_MAX_PAGES_PER_COMPANY = 3
 const BROAD_COMPANY_NAMES = new Set(['yc', 'y combinator', 'startup school'])
+const GENERIC_SINGLE_WORD_NAMES = new Set(['arc', 'beam', 'bolt', 'clay', 'flow', 'linear', 'mercury', 'origin', 'pilot', 'scale'])
 const HN_HOSTS = new Set(['news.ycombinator.com', 'ycombinator.com'])
+const MIN_RELEVANCE_SCORE = 40
+const MIN_STRICT_RELEVANCE_SCORE = 90
 const logger = createLogger('HNFetcher')
 
 export interface HNFetchResult {
@@ -160,10 +163,11 @@ export class HNFetcher {
 
   private toHNPostInput(hit: HNSearchHit, company: Company, checkpoint: Date): UpsertHNPostInput[] {
     const title = (hit.title ?? hit.story_title)?.trim()
-    const objectId = hit.objectID?.trim()
-    const postedAt = parseHNDate(hit)
-    if (!title || !objectId || !postedAt || postedAt < checkpoint) return []
-    if (!isRelevantHit(hit, company)) return []
+  const objectId = hit.objectID?.trim()
+  const postedAt = parseHNDate(hit)
+  if (!title || !objectId || !postedAt || postedAt < checkpoint) return []
+    const relevance = scoreHNHitRelevance(hit, company)
+    if (relevance.score < relevance.minimumScore) return []
 
     return [
       {
@@ -175,6 +179,8 @@ export class HNFetcher {
         author: hit.author?.trim() || null,
         points: Math.max(hit.points ?? 0, 0),
         commentCount: Math.max(hit.num_comments ?? 0, 0),
+        relevanceScore: relevance.score,
+        matchReasons: relevance.reasons,
         postType: classifyHNPost(title),
         postedAt,
         rawData: hit
@@ -222,20 +228,93 @@ const buildQueryVariants = (company: Company): string[] => {
   return [...new Set(variants)]
 }
 
-const isRelevantHit = (hit: HNSearchHit, company: Company): boolean => {
-  const title = (hit.title ?? hit.story_title ?? '').toLowerCase()
-  const text = `${title} ${hit.story_text ?? ''} ${hit.url ?? ''} ${hit.story_url ?? ''}`.toLowerCase()
-  const companyName = company.name.toLowerCase()
-  const slug = company.slug.toLowerCase()
+export interface HNHitRelevance {
+  score: number
+  minimumScore: number
+  reasons: string[]
+}
+
+export const scoreHNHitRelevance = (hit: HNSearchHit, company: Company): HNHitRelevance => {
+  const title = (hit.title ?? hit.story_title ?? '').trim()
+  const titleText = title.toLowerCase()
+  const storyText = `${hit.story_text ?? ''} ${hit.comment_text ?? ''}`.toLowerCase()
+  const urlText = `${hit.url ?? ''} ${hit.story_url ?? ''}`.toLowerCase()
+  const companyName = normalizeTerm(company.name)
+  const slug = normalizeTerm(company.slug)
   const host = hostFromUrl(company.website)?.toLowerCase()
-  const isBroadName = BROAD_COMPANY_NAMES.has(companyName)
+  const aliases = buildCompanyAliases(company)
+  const requiresStrictEvidence = needsStrictEvidence(companyName, aliases)
+  const reasons: string[] = []
+  let score = 0
+  let launchTitleMatched = false
 
-  if (host && hostMatchesHitUrl(hit, host)) return true
-  if (!isBroadName && companyName.length >= 4 && containsTerm(text, companyName)) return true
-  if (!isBroadName && slug.length >= 4 && containsTerm(text, slug)) return true
+  if (host && hostMatchesHitUrl(hit, host)) {
+    score += 100
+    reasons.push(`domain:${host}`)
+  }
 
-  const nameTokens = companyName.split(/[^a-z0-9]+/).filter((token) => token.length >= 4)
-  return !isBroadName && nameTokens.length > 1 && nameTokens.every((token) => containsTerm(text, token))
+  for (const alias of aliases) {
+    if (startsWithLaunchPrefix(titleText, alias)) {
+      score += 95
+      reasons.push(`launch-title:${alias}`)
+      launchTitleMatched = true
+      break
+    }
+  }
+
+  if (!launchTitleMatched) {
+    for (const alias of aliases) {
+      if (containsTerm(titleText, alias)) {
+        score += 80
+        reasons.push(`title:${alias}`)
+        break
+      }
+    }
+  }
+
+  if (slug.length >= 4 && containsTerm(urlText, slug)) {
+    score += 45
+    reasons.push(`url-slug:${slug}`)
+  }
+
+  if (!requiresStrictEvidence) {
+    for (const alias of aliases) {
+      if (containsTerm(storyText, alias)) {
+        score += 25
+        reasons.push(`story:${alias}`)
+        break
+      }
+    }
+  }
+
+  const minimumScore = requiresStrictEvidence ? MIN_STRICT_RELEVANCE_SCORE : MIN_RELEVANCE_SCORE
+  return {
+    score: Math.min(score, 255),
+    minimumScore,
+    reasons
+  }
+}
+
+const buildCompanyAliases = (company: Company): string[] => {
+  const host = hostFromUrl(company.website)
+  const values = [
+    company.name,
+    company.slug.replace(/-/g, ' '),
+    host?.replace(/\.[a-z]+$/i, '').replace(/-/g, ' ')
+  ]
+  return [...new Set(values.map((value) => normalizeTerm(value ?? '')).filter((value) => value.length >= 3))]
+}
+
+const needsStrictEvidence = (companyName: string, aliases: string[]): boolean => {
+  if (BROAD_COMPANY_NAMES.has(companyName)) return true
+  return aliases.some((alias) => !alias.includes(' ') && (alias.length <= 6 || GENERIC_SINGLE_WORD_NAMES.has(alias)))
+}
+
+const startsWithLaunchPrefix = (title: string, alias: string): boolean => {
+  return ['show hn', 'launch hn'].some((prefix) => {
+    const normalized = title.replace(/^launch hn:/, 'launch hn').replace(/^show hn:/, 'show hn')
+    return normalized.startsWith(`${prefix} ${alias}`) || normalized.startsWith(`${prefix}: ${alias}`)
+  })
 }
 
 const hostMatchesHitUrl = (hit: HNSearchHit, companyHost: string): boolean => {
@@ -251,6 +330,8 @@ const containsTerm = (text: string, term: string): boolean => {
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text)
 }
+
+const normalizeTerm = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ')
 
 const hostFromUrl = (value: string | null | undefined): string | null => {
   if (!value) return null

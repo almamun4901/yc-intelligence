@@ -7,10 +7,11 @@ export interface HNActivityRouteOptions {
   hnService: HNActivityApiService
 }
 
-type HNActivitySearchQuery = Omit<HNPostSearchParams, 'since' | 'until' | 'minPoints' | 'limit' | 'offset'> & {
+type HNActivitySearchQuery = Omit<HNPostSearchParams, 'since' | 'until' | 'minPoints' | 'minRelevanceScore' | 'limit' | 'offset'> & {
   since?: string
   until?: string
   minPoints?: number | string
+  minRelevanceScore?: number | string
   limit?: number | string
   offset?: number | string
 }
@@ -36,6 +37,7 @@ export const registerHNActivityRoutes = (app: FastifyInstance, options: HNActivi
             since: { type: 'string', format: 'date-time' },
             until: { type: 'string', format: 'date-time' },
             minPoints: { type: 'integer', minimum: 0 },
+            minRelevanceScore: { type: 'integer', minimum: 0 },
             limit: { type: 'integer', minimum: 0 },
             offset: { type: 'integer', minimum: 0 },
             sort: { type: 'string', enum: hnSortValues }
@@ -68,6 +70,8 @@ export const registerHNActivityRoutes = (app: FastifyInstance, options: HNActivi
           author: post.author,
           points: post.points,
           comments: post.commentCount,
+          relevanceScore: post.relevanceScore,
+          matchReasons: post.matchReasons,
           postType: post.postType,
           postedAt: post.postedAt.toISOString(),
           fetchedAt: post.fetchedAt.toISOString()
@@ -87,6 +91,7 @@ const toHNPostSearchParams = (query: HNActivitySearchQuery): HNPostSearchParams 
   ...(query.since ? { since: new Date(query.since) } : {}),
   ...(query.until ? { until: new Date(query.until) } : {}),
   ...(query.minPoints !== undefined ? { minPoints: Number(query.minPoints) } : {}),
+  ...(query.minRelevanceScore !== undefined ? { minRelevanceScore: Number(query.minRelevanceScore) } : {}),
   ...(query.limit !== undefined ? { limit: Number(query.limit) } : {}),
   ...(query.offset !== undefined ? { offset: Number(query.offset) } : {}),
   ...(query.sort ? { sort: query.sort } : {})

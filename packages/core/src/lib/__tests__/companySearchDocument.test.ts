@@ -81,6 +81,8 @@ function makeHNPost(overrides: Partial<HNPost> = {}): HNPost {
     author: 'founder',
     points: 10,
     commentCount: 2,
+    relevanceScore: 100,
+    matchReasons: ['domain:acme.ai'],
     postType: 'Show HN',
     postedAt: new Date('2026-05-01T00:00:00.000Z'),
     fetchedAt: new Date('2026-05-23T00:00:00.000Z'),

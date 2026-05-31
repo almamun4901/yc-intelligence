@@ -164,6 +164,8 @@ const hnPost: HNPost = {
   author: 'ada',
   points: 42,
   commentCount: 7,
+  relevanceScore: 195,
+  matchReasons: ['domain:acme.ai', 'launch-title:acme ai'],
   postType: 'Show HN',
   postedAt: now,
   fetchedAt: now

@@ -26,7 +26,12 @@ export class PrismaHNPostRepository implements IHNPostRepository {
     const orderBy =
       params.sort === 'newest'
         ? [{ postedAt: 'desc' as const }, { points: 'desc' as const }]
-        : [{ points: 'desc' as const }, { commentCount: 'desc' as const }, { postedAt: 'desc' as const }]
+        : [
+            { relevanceScore: 'desc' as const },
+            { points: 'desc' as const },
+            { commentCount: 'desc' as const },
+            { postedAt: 'desc' as const }
+          ]
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.hNPost.findMany({
@@ -86,6 +91,7 @@ export class PrismaHNPostRepository implements IHNPostRepository {
       ...(params.companyId ? { companyId: params.companyId } : {}),
       ...(params.postType ? { postType: params.postType } : {}),
       ...(params.minPoints !== undefined ? { points: { gte: params.minPoints } } : {}),
+      ...(params.minRelevanceScore !== undefined ? { relevanceScore: { gte: params.minRelevanceScore } } : {}),
       ...(params.since || params.until
         ? {
             postedAt: {
@@ -117,6 +123,8 @@ export class PrismaHNPostRepository implements IHNPostRepository {
       author: post.author,
       points: post.points,
       commentCount: post.commentCount,
+      relevanceScore: post.relevanceScore,
+      matchReasons: post.matchReasons as Prisma.InputJsonValue,
       postType: post.postType,
       postedAt: post.postedAt,
       rawData: post.rawData as Prisma.InputJsonValue | undefined
@@ -135,6 +143,8 @@ export class PrismaHNPostRepository implements IHNPostRepository {
       author: row.author,
       points: row.points,
       commentCount: row.commentCount,
+      relevanceScore: row.relevanceScore,
+      matchReasons: Array.isArray(row.matchReasons) ? row.matchReasons.filter((reason): reason is string => typeof reason === 'string') : [],
       postType: row.postType as HNPostType,
       postedAt: row.postedAt,
       fetchedAt: row.fetchedAt,

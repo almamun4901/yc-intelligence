@@ -101,6 +101,8 @@ describe('HNFetcher', () => {
         title: 'Show HN: Acme AI - agents for databases',
         points: 42,
         commentCount: 7,
+        relevanceScore: 195,
+        matchReasons: ['domain:acme.ai', 'launch-title:acme ai'],
         postType: 'Show HN',
         postedAt: new Date('2026-05-17T00:00:00.000Z')
       }

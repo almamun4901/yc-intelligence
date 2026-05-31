@@ -36,6 +36,8 @@ runIntegration('PrismaHNPostRepository', () => {
         author: 'ada',
         points: 25,
         commentCount: 8,
+        relevanceScore: 100,
+        matchReasons: ['domain:hnrepo.example'],
         postType: 'Show HN',
         postedAt: new Date('2026-05-01T00:00:00.000Z'),
         rawData: { objectID: objectId }
@@ -51,6 +53,8 @@ runIntegration('PrismaHNPostRepository', () => {
         author: 'ada',
         points: 30,
         commentCount: 10,
+        relevanceScore: 175,
+        matchReasons: ['domain:hnrepo.example', 'launch-title:hn repo co'],
         postType: 'Show HN',
         postedAt: new Date('2026-05-01T00:00:00.000Z')
       }
@@ -69,6 +73,8 @@ runIntegration('PrismaHNPostRepository', () => {
     expect(filtered.data[0]).toMatchObject({
       title: 'Show HN: HN Repo Co updated',
       points: 30,
+      relevanceScore: 175,
+      matchReasons: ['domain:hnrepo.example', 'launch-title:hn repo co'],
       company: {
         name: 'HN Repo Co',
         slug: company.slug

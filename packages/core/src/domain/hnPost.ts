@@ -17,6 +17,8 @@ export interface HNPost {
   author: string | null
   points: number
   commentCount: number
+  relevanceScore: number
+  matchReasons: string[]
   postType: HNPostType
   postedAt: Date
   fetchedAt: Date
@@ -44,6 +46,7 @@ export interface HNPostSearchParams {
   since?: Date
   until?: Date
   minPoints?: number
+  minRelevanceScore?: number
   limit?: number
   offset?: number
   sort?: 'signal' | 'newest'

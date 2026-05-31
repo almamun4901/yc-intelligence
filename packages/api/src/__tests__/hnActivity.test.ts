@@ -12,7 +12,7 @@ describe('API HN activity routes', () => {
     const response = await app.inject({
       method: 'GET',
       url:
-        '/hn-activity?companySlug=acme-ai&companyName=Acme&batch=W24&industry=Developer%20Tools&postType=Show%20HN&since=2026-05-01T00%3A00%3A00.000Z&until=2026-05-31T00%3A00%3A00.000Z&minPoints=25&limit=10&offset=5&sort=newest'
+        '/hn-activity?companySlug=acme-ai&companyName=Acme&batch=W24&industry=Developer%20Tools&postType=Show%20HN&since=2026-05-01T00%3A00%3A00.000Z&until=2026-05-31T00%3A00%3A00.000Z&minPoints=25&minRelevanceScore=80&limit=10&offset=5&sort=newest'
     })
 
     expect(response.statusCode).toBe(200)
@@ -25,6 +25,7 @@ describe('API HN activity routes', () => {
       since: new Date('2026-05-01T00:00:00.000Z'),
       until: new Date('2026-05-31T00:00:00.000Z'),
       minPoints: 25,
+      minRelevanceScore: 80,
       limit: 10,
       offset: 5,
       sort: 'newest'
@@ -50,6 +51,8 @@ describe('API HN activity routes', () => {
           author: 'dang',
           points: 42,
           comments: 12,
+          relevanceScore: 195,
+          matchReasons: ['domain:acme.ai', 'launch-title:acme ai'],
           postType: 'Show HN',
           postedAt: '2026-05-20T00:00:00.000Z',
           fetchedAt: '2026-05-23T00:00:00.000Z'
@@ -114,6 +117,8 @@ function makeHNPost(overrides: Partial<HNPost> = {}): HNPost {
     author: 'dang',
     points: 42,
     commentCount: 12,
+    relevanceScore: 195,
+    matchReasons: ['domain:acme.ai', 'launch-title:acme ai'],
     postType: 'Show HN',
     postedAt: new Date('2026-05-20T00:00:00.000Z'),
     fetchedAt: new Date('2026-05-23T00:00:00.000Z'),

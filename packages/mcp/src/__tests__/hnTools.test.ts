@@ -51,6 +51,8 @@ describe('HN MCP tools', () => {
           author: 'ada',
           points: 42,
           comments: 7,
+          relevanceScore: 195,
+          matchReasons: ['domain:acme.ai', 'launch-title:acme ai'],
           postType: 'Show HN',
           postedAt: '2026-05-01T00:00:00.000Z'
         }
@@ -77,6 +79,8 @@ function makeHNPost(overrides: Partial<HNPost> = {}): HNPost {
     author: 'ada',
     points: 42,
     commentCount: 7,
+    relevanceScore: 195,
+    matchReasons: ['domain:acme.ai', 'launch-title:acme ai'],
     postType: 'Show HN',
     postedAt: new Date('2026-05-01T00:00:00.000Z'),
     fetchedAt: new Date('2026-05-24T00:00:00.000Z'),

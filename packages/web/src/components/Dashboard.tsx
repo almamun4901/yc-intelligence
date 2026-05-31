@@ -95,6 +95,8 @@ interface HNActivityPost {
   author: string | null
   points: number
   comments: number
+  relevanceScore: number
+  matchReasons: string[]
   postType: string
   postedAt: string
   fetchedAt: string
@@ -890,6 +892,7 @@ function HNActivityTable({
             <th>Type</th>
             <th>Points</th>
             <th>Comments</th>
+            <th>Relevance</th>
             <th>Posted</th>
             <th>Author</th>
           </tr>
@@ -912,6 +915,9 @@ function HNActivityTable({
               </td>
               <td>{formatCount(post.points)}</td>
               <td>{formatCount(post.comments)}</td>
+              <td>
+                <span title={post.matchReasons.join(', ') || 'No match reasons'}>{post.relevanceScore}</span>
+              </td>
               <td>{formatDate(post.postedAt)}</td>
               <td>{post.author ?? '-'}</td>
             </tr>

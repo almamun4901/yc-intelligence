@@ -109,6 +109,8 @@ model HNPost {
   author       String?
   points       Int      @default(0)
   commentCount Int      @default(0)
+  relevanceScore Int    @default(0)
+  matchReasons Json     @default("[]")
   postType     String
   postedAt     DateTime
   fetchedAt    DateTime @default(now())
@@ -121,6 +123,7 @@ model HNPost {
   @@index([postedAt])
   @@index([points])
   @@index([commentCount])
+  @@index([relevanceScore])
   @@map("hn_posts")
 }
 

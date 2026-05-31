@@ -14,6 +14,7 @@ describe('HNService', () => {
       batch: '  W24  ',
       industry: '  Developer Tools  ',
       minPoints: -5,
+      minRelevanceScore: -10,
       limit: 100,
       offset: -10
     })
@@ -24,6 +25,7 @@ describe('HNService', () => {
       batch: 'W24',
       industry: 'Developer Tools',
       minPoints: 0,
+      minRelevanceScore: 0,
       sort: 'signal',
       limit: 50,
       offset: 0

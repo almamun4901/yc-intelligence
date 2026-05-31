@@ -9,6 +9,8 @@ export interface UpsertHNPostInput {
   author: string | null
   points: number
   commentCount: number
+  relevanceScore: number
+  matchReasons: string[]
   postType: HNPostType
   postedAt: Date
   rawData?: unknown
