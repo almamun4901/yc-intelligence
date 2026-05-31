@@ -122,7 +122,7 @@ describe('HNFetcher', () => {
       id: 'company-yc',
       name: 'Y Combinator',
       slug: 'y-combinator',
-      website: null
+      website: 'https://www.ycombinator.com'
     })
     const hnRepo = new InMemoryHNPostRepository()
     const client = makeClient([
@@ -133,6 +133,7 @@ describe('HNFetcher', () => {
             story_id: 200,
             title: 'Ask HN: What happened to Y Combinator interviews?',
             url: 'https://example.com',
+            story_text: 'Related thread: https://news.ycombinator.com/item?id=123',
             points: 125,
             num_comments: 80,
             created_at_i: 1778976000
@@ -140,6 +141,44 @@ describe('HNFetcher', () => {
         ],
         nbPages: 1
       },
+      { hits: [], nbPages: 1 }
+    ])
+    const fetcher = new HNFetcher(new InMemoryCompanyRepository([company]), hnRepo, {
+      client,
+      now: () => new Date('2026-05-24T00:00:00.000Z'),
+      lookbackDays: 30
+    })
+
+    const result = await fetcher.fetchForCompany(company)
+
+    expect(result).toEqual({ postsFound: 0, postsUpserted: 0 })
+    expect(hnRepo.posts).toEqual([])
+  })
+
+  it('does not match company names inside larger words', async () => {
+    const company = makeCompany({
+      id: 'company-origin',
+      name: 'Origin',
+      slug: 'origin-bio',
+      website: 'https://origin.bio'
+    })
+    const hnRepo = new InMemoryHNPostRepository()
+    const client = makeClient([
+      {
+        hits: [
+          {
+            objectID: '300',
+            story_id: 300,
+            title: 'California moves to exempt Linux from its original age-verification law',
+            url: 'https://example.com',
+            points: 100,
+            num_comments: 20,
+            created_at_i: 1778976000
+          }
+        ],
+        nbPages: 1
+      },
+      { hits: [], nbPages: 1 },
       { hits: [], nbPages: 1 }
     ])
     const fetcher = new HNFetcher(new InMemoryCompanyRepository([company]), hnRepo, {

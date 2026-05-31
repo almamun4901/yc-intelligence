@@ -11,6 +11,7 @@ const DEFAULT_LOOKBACK_DAYS = 30
 const CHECKPOINT_OVERLAP_DAYS = 2
 const DEFAULT_MAX_PAGES_PER_COMPANY = 3
 const BROAD_COMPANY_NAMES = new Set(['yc', 'y combinator', 'startup school'])
+const HN_HOSTS = new Set(['news.ycombinator.com', 'ycombinator.com'])
 const logger = createLogger('HNFetcher')
 
 export interface HNFetchResult {
@@ -229,12 +230,26 @@ const isRelevantHit = (hit: HNSearchHit, company: Company): boolean => {
   const host = hostFromUrl(company.website)?.toLowerCase()
   const isBroadName = BROAD_COMPANY_NAMES.has(companyName)
 
-  if (host && text.includes(host)) return true
-  if (!isBroadName && companyName.length >= 4 && text.includes(companyName)) return true
-  if (slug.length >= 4 && text.includes(slug)) return true
+  if (host && hostMatchesHitUrl(hit, host)) return true
+  if (!isBroadName && companyName.length >= 4 && containsTerm(text, companyName)) return true
+  if (!isBroadName && slug.length >= 4 && containsTerm(text, slug)) return true
 
   const nameTokens = companyName.split(/[^a-z0-9]+/).filter((token) => token.length >= 4)
-  return !isBroadName && nameTokens.length > 0 && nameTokens.every((token) => text.includes(token))
+  return !isBroadName && nameTokens.length > 1 && nameTokens.every((token) => containsTerm(text, token))
+}
+
+const hostMatchesHitUrl = (hit: HNSearchHit, companyHost: string): boolean => {
+  const urls = [hit.url, hit.story_url].filter((url): url is string => Boolean(url))
+  return urls.some((url) => {
+    const hitHost = hostFromUrl(url)
+    if (!hitHost || HN_HOSTS.has(hitHost)) return false
+    return hitHost === companyHost || hitHost.endsWith(`.${companyHost}`)
+  })
+}
+
+const containsTerm = (text: string, term: string): boolean => {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text)
 }
 
 const hostFromUrl = (value: string | null | undefined): string | null => {
