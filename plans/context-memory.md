@@ -14,12 +14,12 @@ This file is the working implementation memory for the repo. Update it as phases
 - `packages/core` owns domain types, repositories, services, data pipeline, config, logging, and Prisma.
 - `packages/mcp` is a thin MCP adapter over core services.
 - `packages/api` is a thin Fastify REST adapter over core services.
-- `packages/web` is scaffold-only for future UI work.
+- `packages/web` is the Next.js dashboard for company, job, founder, and HN activity exploration.
 - Docker Compose provides local Postgres with pgvector and Redis.
 
 ## Current Working State
 
-- Branch: `memory-mcp-tools`.
+- Branch: `hn-activity-rest-api`.
 - Phase 0 scaffold is present from `origin/main`.
 - Project Memory Phase 1 was started from this context-memory plan and is now implemented and verified.
 - `MemoryEntry` is exclusively for project-level decisions, notes, and research provenance.
@@ -28,11 +28,12 @@ This file is the working implementation memory for the repo. Update it as phases
 - Phase 3/4 company query vertical slice is implemented. Core now exposes `CompanyService`; MCP now registers `search_companies` and `get_company_detail` over that service.
 - Phase 5 REST company API slice is implemented. API now exposes `/health`, `/companies`, and `/companies/:slug` over `CompanyService`, with Redis-backed best-effort caching for successful company GET responses.
 - Job search foundation is implemented and live-smoke verified. Core now has `Job`, `CompanyJobSyncState`, `IJobRepository`, `PrismaJobRepository`, `JobService`, `extractTechStack`, `JobBoardFetcher`, and `pipeline:jobs`; API exposes `/jobs`; MCP registers `search_jobs`.
-- HN ingestion vertical slice is implemented and live-smoke verified. Core now has `HNPost`, `CompanyHNSyncState`, `IHNPostRepository`, `PrismaHNPostRepository`, `HNFetcher`, `HNService`, and `pipeline:hn`; MCP registers `get_hn_activity`; company detail includes recent/top HN posts when an HN repository is injected.
+- HN activity is implemented across ingestion, REST, MCP, and dashboard. Core now has `HNPost`, `CompanyHNSyncState`, `IHNPostRepository`, `PrismaHNPostRepository`, `HNFetcher`, `HNService`, and `pipeline:hn`; MCP registers `get_hn_activity`; API exposes `/hn-activity`; the dashboard has a first-class HN Activity view; company detail includes recent/top HN posts when an HN repository is injected.
+- HN relevance scoring is implemented. `HNPost` stores `relevanceScore` and `matchReasons`; `HNFetcher` scores domain, `Show HN`/`Launch HN` title, exact title alias, URL slug, and story text signals; broad/generic names require stricter evidence. API/MCP return score/reasons, and the dashboard displays relevance.
 - GitHub ingestion is intentionally deferred for now because most YC companies do not expose public repos, matching is noisy, and public GitHub signals should not be treated as canonical internal tech stack data.
 - Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, Voyage embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
 - MCP project memory tools are implemented and unit-tested. `packages/mcp` now registers `add_memory`, `search_memory`, and `supersede_memory` over `MemoryService`, with the production server wired to `PrismaMemoryRepository`.
-- Next implementation work should continue with richer company detail aggregation, live Claude acceptance once local Claude auth and local data services are available, or repo polish, while preserving the project-memory boundary established in Phase 1.
+- Next implementation work should continue with richer company detail aggregation, optional company-specific HN alias/ignore rules, live Claude acceptance once local Claude auth and local data services are available, or repo polish, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -328,8 +329,11 @@ Hardening follow-up on 2026-05-25:
 - [x] Add MCP `get_hn_activity`.
 - [x] Add HN post summaries to company detail when an HN repository is injected.
 - [x] Add unit tests, MCP adapter tests, and opt-in Prisma repository integration coverage.
+- [x] Add REST `/hn-activity`.
+- [x] Add dashboard HN Activity view with filters and relevance display.
+- [x] Add scored HN relevance metadata (`relevanceScore`, `matchReasons`) and stricter matching for broad/generic company names.
 
-Status: implementation complete and live-smoke verified as of 2026-05-24.
+Status: implementation complete and live-smoke verified as of 2026-05-31.
 
 Live smoke verification notes:
 
@@ -337,7 +341,11 @@ Live smoke verification notes:
 - `HN_PIPELINE_LIMIT=25 DATABASE_URL=postgresql://yc_user:yc_password@localhost:5433/yc_intelligence pnpm --filter @yc-intelligence/core pipeline:hn` completed with `{"processed":25,"postsFound":241,"postsUpserted":241,"errors":0}`.
 - Post-smoke local database had 235 unique `HNPost` rows and 25 `CompanyHNSyncState` rows.
 - MCP `get_hn_activity` handler over Prisma-backed `HNService` returned HN posts successfully.
-- HN matching is conservative enough for MVP ingestion, but broad company names such as `Y Combinator` can still collect noisy general HN stories; a future relevance tuning pass should add ignore/mapping rules for broad entities.
+- `HN_PIPELINE_LIMIT=250 HN_LOOKBACK_DAYS=3650 HN_MAX_PAGES_PER_COMPANY=2 DATABASE_URL=postgresql://yc_user:yc_password@localhost:5433/yc_intelligence pnpm --filter @yc-intelligence/core pipeline:hn` completed on 2026-05-31 with `{"processed":250,"postsFound":1674,"postsUpserted":1674,"errors":0}` after the relevance scorer was added.
+- Post-scored-backfill local database had 1,673 unique `HNPost` rows and 250 `CompanyHNSyncState` rows. Score range was 45-255, average score 107.71.
+- API and web proxy returned scored HN activity successfully: `/hn-activity?limit=1` and `/api/hn-activity?limit=1` included `relevanceScore` and `matchReasons`.
+- Prisma `migrate deploy` currently fails locally with a vague schema-engine error, so `20260531160000_hn_relevance_scoring` was applied to the local Docker DB with `psql`; the migration file is committed for normal deploy paths.
+- HN matching is materially better after relevance scoring, but generic company names can still need company-specific alias/ignore rules for best precision.
 
 ### Phase 6: Testing
 
