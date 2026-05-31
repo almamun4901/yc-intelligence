@@ -5,6 +5,7 @@ import { createProductionMcpServer, logger } from './server'
 export * from './companyTools'
 export * from './hnTools'
 export * from './jobTools'
+export * from './memoryTools'
 export * from './server'
 
 if (require.main === module) {
