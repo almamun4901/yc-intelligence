@@ -2,9 +2,11 @@
 
 import { FormEvent, UIEvent, useEffect, useMemo, useRef, useState } from 'react'
 
-type View = 'companies' | 'jobs' | 'founders'
-type NavKey = 'search' | 'companies' | 'jobs' | 'founders' | 'pipeline' | 'saved'
+type View = 'companies' | 'jobs' | 'founders' | 'hn'
+type NavKey = 'search' | 'companies' | 'jobs' | 'founders' | 'hn' | 'pipeline' | 'saved'
 type StatusFilter = 'All' | 'Active' | 'Acquired' | 'Inactive'
+type HNPostTypeFilter = 'All' | 'Show HN' | 'Ask HN' | 'Launch' | 'Hiring' | 'Other'
+type HNSort = 'signal' | 'newest'
 type LoadState = 'idle' | 'loading' | 'success' | 'error'
 
 interface CompanySummary {
@@ -76,6 +78,28 @@ interface FounderSummary {
   createdAt: string
 }
 
+interface HNActivityPost {
+  id: string
+  companyId: string
+  company: {
+    id: string
+    name: string
+    slug: string
+    batch: string | null
+    tags: string[]
+  } | null
+  hnObjectId: string
+  hnItemId: string | null
+  title: string
+  url: string | null
+  author: string | null
+  points: number
+  comments: number
+  postType: string
+  postedAt: string
+  fetchedAt: string
+}
+
 interface CompanySearchResponse {
   total: number
   count: number
@@ -94,6 +118,12 @@ interface FounderSearchResponse {
   founders: FounderSummary[]
 }
 
+interface HNActivityResponse {
+  total: number
+  count: number
+  posts: HNActivityPost[]
+}
+
 interface CompanyDetailResponse {
   found: boolean
   company?: CompanyDetail
@@ -105,11 +135,17 @@ const navItems: Array<{ key: NavKey; label: string; view: View | 'static' }> = [
   { key: 'companies', label: 'Companies', view: 'companies' },
   { key: 'jobs', label: 'Jobs', view: 'jobs' },
   { key: 'founders', label: 'Founders', view: 'founders' },
+  { key: 'hn', label: 'HN Activity', view: 'hn' },
   { key: 'pipeline', label: 'Pipeline', view: 'static' },
   { key: 'saved', label: 'Saved Searches', view: 'static' }
 ]
 
 const statusFilters: StatusFilter[] = ['All', 'Active', 'Acquired', 'Inactive']
+const hnPostTypeFilters: HNPostTypeFilter[] = ['All', 'Show HN', 'Ask HN', 'Launch', 'Hiring', 'Other']
+const hnSortOptions: Array<{ label: string; value: HNSort }> = [
+  { label: 'Signal', value: 'signal' },
+  { label: 'Newest', value: 'newest' }
+]
 const PAGE_SIZE = 50
 const LOAD_MORE_THRESHOLD_PX = 160
 
@@ -126,15 +162,20 @@ export function Dashboard() {
   const [previousEmployer, setPreviousEmployer] = useState('')
   const [school, setSchool] = useState('')
   const [status, setStatus] = useState<StatusFilter>('All')
+  const [hnPostType, setHNPostType] = useState<HNPostTypeFilter>('All')
+  const [hnSort, setHNSort] = useState<HNSort>('signal')
+  const [hnMinPoints, setHNMinPoints] = useState('')
   const [isHiring, setIsHiring] = useState(false)
   const [isRemote, setIsRemote] = useState(false)
   const [companies, setCompanies] = useState<CompanySummary[]>([])
   const [jobs, setJobs] = useState<JobSummary[]>([])
   const [founders, setFounders] = useState<FounderSummary[]>([])
+  const [hnPosts, setHNPosts] = useState<HNActivityPost[]>([])
   const [companyTotal, setCompanyTotal] = useState(0)
   const [hiringCompanyTotal, setHiringCompanyTotal] = useState(0)
   const [jobTotal, setJobTotal] = useState(0)
   const [founderTotal, setFounderTotal] = useState(0)
+  const [hnTotal, setHNTotal] = useState(0)
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -160,7 +201,10 @@ export function Dashboard() {
     view === 'founders' ? previousEmployer : '',
     view === 'founders' ? school : '',
     view === 'companies' && status !== 'All' ? status : '',
-    view !== 'founders' && isHiring ? 'Hiring' : '',
+    view === 'hn' && hnPostType !== 'All' ? hnPostType : '',
+    view === 'hn' && hnMinPoints ? `${hnMinPoints}+ pts` : '',
+    view === 'hn' && hnSort !== 'signal' ? 'Newest' : '',
+    view !== 'founders' && view !== 'hn' && isHiring ? 'Hiring' : '',
     view === 'jobs' && isRemote ? 'Remote' : ''
   ].filter(Boolean).length
 
@@ -169,6 +213,9 @@ export function Dashboard() {
       JSON.stringify({
         batch,
         founderCompany,
+        hnMinPoints,
+        hnPostType,
+        hnSort,
         industry,
         isHiring,
         isRemote,
@@ -180,7 +227,7 @@ export function Dashboard() {
         techStack,
         view
       }),
-    [batch, founderCompany, industry, isHiring, isRemote, location, previousEmployer, school, status, submittedQuery, techStack, view]
+    [batch, founderCompany, hnMinPoints, hnPostType, hnSort, industry, isHiring, isRemote, location, previousEmployer, school, status, submittedQuery, techStack, view]
   )
   const activePageKeyRef = useRef(pageKey)
 
@@ -197,7 +244,15 @@ export function Dashboard() {
         if (view === 'jobs') {
           const [data, founderCount] = await Promise.all([
             fetchJobs(
-              { batch, industry, isRemote, limit: PAGE_SIZE, offset: 0, techStack, query: submittedQuery },
+              {
+                batch,
+                industry,
+                isRemote,
+                limit: PAGE_SIZE,
+                offset: 0,
+                techStack,
+                query: submittedQuery
+              },
               controller.signal
             ),
             fetchFounderCount(controller.signal)
@@ -207,15 +262,53 @@ export function Dashboard() {
           setFounderTotal(founderCount.total)
         } else if (view === 'founders') {
           const data = await fetchFounders(
-            { batch, company: founderCompany, industry, limit: PAGE_SIZE, offset: 0, previousEmployer, query: submittedQuery, school },
+            {
+              batch,
+              company: founderCompany,
+              industry,
+              limit: PAGE_SIZE,
+              offset: 0,
+              previousEmployer,
+              query: submittedQuery,
+              school
+            },
             controller.signal
           )
           setFounders(data.founders)
           setFounderTotal(data.total)
+        } else if (view === 'hn') {
+          const [data, founderCount] = await Promise.all([
+            fetchHNActivity(
+              {
+                batch,
+                companyName: submittedQuery,
+                industry,
+                limit: PAGE_SIZE,
+                minPoints: hnMinPoints,
+                offset: 0,
+                postType: hnPostType,
+                sort: hnSort
+              },
+              controller.signal
+            ),
+            fetchFounderCount(controller.signal)
+          ])
+          setHNPosts(data.posts)
+          setHNTotal(data.total)
+          setFounderTotal(founderCount.total)
         } else {
           const [data, hiringData, founderCount] = await Promise.all([
             fetchCompanies(
-              { batch, industry, isHiring, limit: PAGE_SIZE, location, offset: 0, query: submittedQuery, status },
+              {
+                batch,
+                industry,
+                isHiring,
+                limit: PAGE_SIZE,
+                location,
+                offset: 0,
+                query: submittedQuery,
+                status
+              },
               controller.signal
             ),
             fetchHiringCompanyCount(controller.signal),
@@ -239,7 +332,7 @@ export function Dashboard() {
     void load()
 
     return () => controller.abort()
-  }, [batch, founderCompany, industry, isHiring, isRemote, location, pageKey, previousEmployer, school, status, submittedQuery, techStack, view])
+  }, [batch, founderCompany, hnMinPoints, hnPostType, hnSort, industry, isHiring, isRemote, location, pageKey, previousEmployer, school, status, submittedQuery, techStack, view])
 
   useEffect(() => {
     if (!selectedSlug) {
@@ -285,6 +378,9 @@ export function Dashboard() {
     setPreviousEmployer('')
     setSchool('')
     setStatus('All')
+    setHNPostType('All')
+    setHNSort('signal')
+    setHNMinPoints('')
     setIsHiring(false)
     setIsRemote(false)
     setSubmittedQuery('')
@@ -294,8 +390,8 @@ export function Dashboard() {
   async function loadMoreResults() {
     if (loadState === 'loading' || isLoadingMore) return
 
-    const offset = view === 'jobs' ? jobs.length : view === 'founders' ? founders.length : companies.length
-    const total = view === 'jobs' ? jobTotal : view === 'founders' ? founderTotal : companyTotal
+    const offset = view === 'jobs' ? jobs.length : view === 'founders' ? founders.length : view === 'hn' ? hnPosts.length : companies.length
+    const total = view === 'jobs' ? jobTotal : view === 'founders' ? founderTotal : view === 'hn' ? hnTotal : companyTotal
     if (offset >= total) return
 
     const loadKey = pageKey
@@ -306,7 +402,15 @@ export function Dashboard() {
     try {
       if (view === 'jobs') {
         const data = await fetchJobs(
-          { batch, industry, isRemote, limit: PAGE_SIZE, offset, techStack, query: submittedQuery },
+          {
+            batch,
+            industry,
+            isRemote,
+            limit: PAGE_SIZE,
+            offset,
+            techStack,
+            query: submittedQuery
+          },
           controller.signal
         )
         if (activePageKeyRef.current !== loadKey) return
@@ -314,15 +418,50 @@ export function Dashboard() {
         setJobTotal(data.total)
       } else if (view === 'founders') {
         const data = await fetchFounders(
-          { batch, company: founderCompany, industry, limit: PAGE_SIZE, offset, previousEmployer, query: submittedQuery, school },
+          {
+            batch,
+            company: founderCompany,
+            industry,
+            limit: PAGE_SIZE,
+            offset,
+            previousEmployer,
+            query: submittedQuery,
+            school
+          },
           controller.signal
         )
         if (activePageKeyRef.current !== loadKey) return
         setFounders((current) => mergeByKey(current, data.founders, (founder) => founder.id))
         setFounderTotal(data.total)
+      } else if (view === 'hn') {
+        const data = await fetchHNActivity(
+          {
+            batch,
+            companyName: submittedQuery,
+            industry,
+            limit: PAGE_SIZE,
+            minPoints: hnMinPoints,
+            offset,
+            postType: hnPostType,
+            sort: hnSort
+          },
+          controller.signal
+        )
+        if (activePageKeyRef.current !== loadKey) return
+        setHNPosts((current) => mergeByKey(current, data.posts, (post) => post.id))
+        setHNTotal(data.total)
       } else {
         const data = await fetchCompanies(
-          { batch, industry, isHiring, limit: PAGE_SIZE, location, offset, query: submittedQuery, status },
+          {
+            batch,
+            industry,
+            isHiring,
+            limit: PAGE_SIZE,
+            location,
+            offset,
+            query: submittedQuery,
+            status
+          },
           controller.signal
         )
         if (activePageKeyRef.current !== loadKey) return
@@ -339,12 +478,41 @@ export function Dashboard() {
   }
 
   const metricItems = [
-    { label: 'Indexed companies', value: formatCount(companyTotal), detail: `${companies.length} loaded` },
-    { label: 'Actively hiring', value: formatCount(hiringCompanyTotal), detail: 'Dataset total' },
-    { label: 'Open jobs', value: formatCount(jobTotal), detail: `${jobs.length} loaded` },
-    { label: 'Founder records', value: formatCount(founderTotal), detail: view === 'founders' ? `${founders.length} loaded` : 'Dataset total' },
-    { label: 'Active filters', value: String(activeFilters), detail: submittedQuery ? 'Semantic query on' : 'Structured search' },
-    { label: 'Last refresh', value: lastRefresh ? formatTime(lastRefresh) : '-', detail: loadState === 'loading' ? 'Loading' : 'Live API' }
+    {
+      label: 'Indexed companies',
+      value: formatCount(companyTotal),
+      detail: `${companies.length} loaded`
+    },
+    {
+      label: 'Actively hiring',
+      value: formatCount(hiringCompanyTotal),
+      detail: 'Dataset total'
+    },
+    {
+      label: 'Open jobs',
+      value: formatCount(jobTotal),
+      detail: `${jobs.length} loaded`
+    },
+    {
+      label: 'HN posts',
+      value: formatCount(hnTotal),
+      detail: view === 'hn' ? `${hnPosts.length} loaded` : 'Activity index'
+    },
+    {
+      label: 'Founder records',
+      value: formatCount(founderTotal),
+      detail: view === 'founders' ? `${founders.length} loaded` : 'Dataset total'
+    },
+    {
+      label: 'Active filters',
+      value: String(activeFilters),
+      detail: submittedQuery ? 'Semantic query on' : 'Structured search'
+    },
+    {
+      label: 'Last refresh',
+      value: lastRefresh ? formatTime(lastRefresh) : '-',
+      detail: loadState === 'loading' ? 'Loading' : 'Live API'
+    }
   ]
 
   return (
@@ -397,7 +565,9 @@ export function Dashboard() {
                   ? 'Search job titles - backend, platform, founding engineer...'
                   : view === 'founders'
                     ? 'Search founders or companies - Stripe alumni, MIT founders...'
-                  : 'Ask anything - companies hiring Rust engineers in Berlin, AI infra from W24...'
+                    : view === 'hn'
+                      ? 'Search HN by company name - Linear, Supabase, Airbyte...'
+                      : 'Ask anything - companies hiring Rust engineers in Berlin, AI infra from W24...'
               }
               value={queryInput}
             />
@@ -433,27 +603,36 @@ export function Dashboard() {
 
         <section className="filters" aria-label="Search filters">
           <input aria-label="Batch" onChange={(event) => setBatch(event.target.value)} placeholder="Batch..." value={batch} />
-          <input
-            aria-label="Industry"
-            onChange={(event) => setIndustry(event.target.value)}
-            placeholder="Industry..."
-            value={industry}
-          />
+          <input aria-label="Industry" onChange={(event) => setIndustry(event.target.value)} placeholder="Industry..." value={industry} />
           {view === 'companies' ? (
             <div className="segmented" aria-label="Company status">
               {statusFilters.map((option) => (
-                <button
-                  className={status === option ? 'selected' : ''}
-                  key={option}
-                  onClick={() => setStatus(option)}
-                  type="button"
-                >
+                <button className={status === option ? 'selected' : ''} key={option} onClick={() => setStatus(option)} type="button">
                   {option}
                 </button>
               ))}
             </div>
           ) : null}
-          {view !== 'founders' ? (
+          {view === 'hn' ? (
+            <div className="segmented" aria-label="HN post type">
+              {hnPostTypeFilters.map((option) => (
+                <button className={hnPostType === option ? 'selected' : ''} key={option} onClick={() => setHNPostType(option)} type="button">
+                  {option}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {view === 'hn' ? (
+            <div className="segmented compact-segmented" aria-label="HN sort">
+              {hnSortOptions.map((option) => (
+                <button className={hnSort === option.value ? 'selected' : ''} key={option.value} onClick={() => setHNSort(option.value)} type="button">
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {view === 'hn' ? <input aria-label="Minimum HN points" inputMode="numeric" onChange={(event) => setHNMinPoints(event.target.value.replace(/\D/g, ''))} placeholder="Min points..." value={hnMinPoints} /> : null}
+          {view !== 'founders' && view !== 'hn' ? (
             <button className={isHiring ? 'pill active-pill' : 'pill'} onClick={() => setIsHiring((value) => !value)} type="button">
               Hiring
             </button>
@@ -463,34 +642,15 @@ export function Dashboard() {
               Remote
             </button>
           ) : null}
-          {view === 'jobs' ? (
-            <input
-              aria-label="Technology stack"
-              onChange={(event) => setTechInput(event.target.value)}
-              placeholder="Tech stack..."
-              value={techInput}
-            />
-          ) : null}
+          {view === 'jobs' ? <input aria-label="Technology stack" onChange={(event) => setTechInput(event.target.value)} placeholder="Tech stack..." value={techInput} /> : null}
           {view === 'founders' ? (
             <>
-              <input
-                aria-label="Founder company"
-                onChange={(event) => setFounderCompany(event.target.value)}
-                placeholder="Company..."
-                value={founderCompany}
-              />
-              <input
-                aria-label="Previous employer"
-                onChange={(event) => setPreviousEmployer(event.target.value)}
-                placeholder="Previous employer..."
-                value={previousEmployer}
-              />
+              <input aria-label="Founder company" onChange={(event) => setFounderCompany(event.target.value)} placeholder="Company..." value={founderCompany} />
+              <input aria-label="Previous employer" onChange={(event) => setPreviousEmployer(event.target.value)} placeholder="Previous employer..." value={previousEmployer} />
               <input aria-label="School" onChange={(event) => setSchool(event.target.value)} placeholder="School..." value={school} />
             </>
           ) : null}
-          {view !== 'founders' ? (
-            <input aria-label="Location" onChange={(event) => setLocation(event.target.value)} placeholder="Location..." value={location} />
-          ) : null}
+          {view !== 'founders' && view !== 'hn' ? <input aria-label="Location" onChange={(event) => setLocation(event.target.value)} placeholder="Location..." value={location} /> : null}
           <button className="link-button" onClick={resetFilters} type="button">
             Reset
           </button>
@@ -498,43 +658,17 @@ export function Dashboard() {
 
         {error ? <div className="notice error-notice">{error}</div> : null}
         <div className="content-grid">
-          <section
-            className="results-panel"
-            aria-label={view === 'jobs' ? 'Job results' : view === 'founders' ? 'Founder results' : 'Company results'}
-          >
+          <section className="results-panel" aria-label={view === 'jobs' ? 'Job results' : view === 'founders' ? 'Founder results' : view === 'hn' ? 'HN activity results' : 'Company results'}>
             <div className="results-header">
-              <span>
-                {loadState === 'loading'
-                  ? 'Loading'
-                  : `${formatCount(view === 'jobs' ? jobTotal : view === 'founders' ? founderTotal : companyTotal)} results`}
-              </span>
-              <strong>
-                {view === 'jobs'
-                  ? 'Open YC jobs'
-                  : view === 'founders'
-                    ? 'YC founder directory'
-                    : submittedQuery
-                      ? 'Semantic company search'
-                      : 'Company directory'}
-              </strong>
+              <span>{loadState === 'loading' ? 'Loading' : `${formatCount(view === 'jobs' ? jobTotal : view === 'founders' ? founderTotal : view === 'hn' ? hnTotal : companyTotal)} results`}</span>
+              <strong>{view === 'jobs' ? 'Open YC jobs' : view === 'founders' ? 'YC founder directory' : view === 'hn' ? 'Hacker News activity' : submittedQuery ? 'Semantic company search' : 'Company directory'}</strong>
             </div>
             {view === 'jobs' ? (
-              <JobsTable
-                hasMore={jobs.length < jobTotal}
-                jobs={jobs}
-                loading={loadState === 'loading'}
-                loadingMore={isLoadingMore}
-                onLoadMore={loadMoreResults}
-              />
+              <JobsTable hasMore={jobs.length < jobTotal} jobs={jobs} loading={loadState === 'loading'} loadingMore={isLoadingMore} onLoadMore={loadMoreResults} />
             ) : view === 'founders' ? (
-              <FoundersTable
-                founders={founders}
-                hasMore={founders.length < founderTotal}
-                loading={loadState === 'loading'}
-                loadingMore={isLoadingMore}
-                onLoadMore={loadMoreResults}
-                onSelectCompany={setSelectedSlug}
-              />
+              <FoundersTable founders={founders} hasMore={founders.length < founderTotal} loading={loadState === 'loading'} loadingMore={isLoadingMore} onLoadMore={loadMoreResults} onSelectCompany={setSelectedSlug} />
+            ) : view === 'hn' ? (
+              <HNActivityTable hasMore={hnPosts.length < hnTotal} loading={loadState === 'loading'} loadingMore={isLoadingMore} onLoadMore={loadMoreResults} onSelectCompany={setSelectedSlug} posts={hnPosts} />
             ) : (
               <CompaniesTable
                 companies={companies}
@@ -618,19 +752,7 @@ function CompaniesTable({
   )
 }
 
-function JobsTable({
-  hasMore,
-  jobs,
-  loading,
-  loadingMore,
-  onLoadMore
-}: {
-  hasMore: boolean
-  jobs: JobSummary[]
-  loading: boolean
-  loadingMore: boolean
-  onLoadMore: () => void
-}) {
+function JobsTable({ hasMore, jobs, loading, loadingMore, onLoadMore }: { hasMore: boolean; jobs: JobSummary[]; loading: boolean; loadingMore: boolean; onLoadMore: () => void }) {
   if (!loading && jobs.length === 0) return <EmptyState label="No jobs match the current filters." />
 
   return (
@@ -725,21 +847,13 @@ function FoundersTable({
               </td>
               <td>{founder.company.batch ?? '-'}</td>
               <td>
-                <span className={founder.company.status === 'Active' ? 'status active-status' : 'status'}>
-                  {founder.company.status ?? '-'}
-                </span>
+                <span className={founder.company.status === 'Active' ? 'status active-status' : 'status'}>{founder.company.status ?? '-'}</span>
               </td>
               <td>
                 <TagRow tags={founder.company.tags} />
               </td>
               <td>{founder.company.location ?? '-'}</td>
-              <td>
-                {founder.linkedinUrl ? (
-                  <LinkedInButton href={founder.linkedinUrl} label={`Open ${founder.name} LinkedIn`} />
-                ) : (
-                  '-'
-                )}
-              </td>
+              <td>{founder.linkedinUrl ? <LinkedInButton href={founder.linkedinUrl} label={`Open ${founder.name} LinkedIn`} /> : '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -749,15 +863,78 @@ function FoundersTable({
   )
 }
 
-function InfiniteScrollStatus({
+function HNActivityTable({
   hasMore,
+  loading,
   loadingMore,
-  onLoadMore
+  onLoadMore,
+  onSelectCompany,
+  posts
 }: {
   hasMore: boolean
+  loading: boolean
   loadingMore: boolean
   onLoadMore: () => void
+  onSelectCompany: (slug: string) => void
+  posts: HNActivityPost[]
 }) {
+  if (!loading && posts.length === 0) return <EmptyState label="No HN posts match the current filters." />
+
+  return (
+    <div className="table-wrap" onScroll={(event) => handleResultsScroll(event, hasMore, loadingMore, onLoadMore)}>
+      <table>
+        <thead>
+          <tr>
+            <th>Post</th>
+            <th>Company</th>
+            <th>Type</th>
+            <th>Points</th>
+            <th>Comments</th>
+            <th>Posted</th>
+            <th>Author</th>
+          </tr>
+        </thead>
+        <tbody>
+          {posts.map((post) => (
+            <tr key={post.id}>
+              <td>
+                {post.url ? (
+                  <a className="table-link strong-table-link" href={post.url} rel="noreferrer" target="_blank">
+                    {post.title}
+                  </a>
+                ) : (
+                  <strong>{post.title}</strong>
+                )}
+              </td>
+              <td>{post.company ? <HNCompanyButton company={post.company} onSelectCompany={onSelectCompany} /> : '-'}</td>
+              <td>
+                <span className="status">{post.postType}</span>
+              </td>
+              <td>{formatCount(post.points)}</td>
+              <td>{formatCount(post.comments)}</td>
+              <td>{formatDate(post.postedAt)}</td>
+              <td>{post.author ?? '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <InfiniteScrollStatus hasMore={hasMore} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+    </div>
+  )
+}
+
+function HNCompanyButton({ company, onSelectCompany }: { company: NonNullable<HNActivityPost['company']>; onSelectCompany: (slug: string) => void }) {
+  return (
+    <button className="company-cell row-button" onClick={() => onSelectCompany(company.slug)} type="button">
+      <span>
+        <strong>{company.name}</strong>
+        <small>{company.batch ?? '-'}</small>
+      </span>
+    </button>
+  )
+}
+
+function InfiniteScrollStatus({ hasMore, loadingMore, onLoadMore }: { hasMore: boolean; loadingMore: boolean; onLoadMore: () => void }) {
   if (!hasMore) return <div className="load-more-status">All matching rows loaded</div>
 
   return (
@@ -773,12 +950,7 @@ function InfiniteScrollStatus({
   )
 }
 
-function handleResultsScroll(
-  event: UIEvent<HTMLDivElement>,
-  hasMore: boolean,
-  loadingMore: boolean,
-  onLoadMore: () => void
-) {
+function handleResultsScroll(event: UIEvent<HTMLDivElement>, hasMore: boolean, loadingMore: boolean, onLoadMore: () => void) {
   if (!hasMore || loadingMore) return
 
   const target = event.currentTarget
@@ -873,9 +1045,7 @@ function CompanyInspector({ company, loading }: { company: CompanyDetail | null;
                   <strong>{founder.name}</strong>
                   <small>{summarizeFounder(founder)}</small>
                 </div>
-                {founder.linkedinUrl ? (
-                  <LinkedInButton href={founder.linkedinUrl} label={`Open ${founder.name} LinkedIn`} />
-                ) : null}
+                {founder.linkedinUrl ? <LinkedInButton href={founder.linkedinUrl} label={`Open ${founder.name} LinkedIn`} /> : null}
               </li>
             ))}
           </ul>
@@ -959,7 +1129,10 @@ async function fetchCompanies(
   },
   signal: AbortSignal
 ) {
-  const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
+  const params = new URLSearchParams({
+    limit: String(filters.limit),
+    offset: String(filters.offset)
+  })
   if (filters.batch) params.set('batch', filters.batch)
   if (filters.industry) params.set('industry', filters.industry)
   if (filters.location) params.set('location', filters.location)
@@ -991,7 +1164,10 @@ async function fetchJobs(
   },
   signal: AbortSignal
 ) {
-  const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
+  const params = new URLSearchParams({
+    limit: String(filters.limit),
+    offset: String(filters.offset)
+  })
   if (filters.batch) params.set('batch', filters.batch)
   if (filters.industry) params.set('industry', filters.industry)
   if (filters.isRemote) params.set('isRemote', 'true')
@@ -1014,7 +1190,10 @@ async function fetchFounders(
   },
   signal: AbortSignal
 ) {
-  const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
+  const params = new URLSearchParams({
+    limit: String(filters.limit),
+    offset: String(filters.offset)
+  })
   if (filters.batch) params.set('batch', filters.batch)
   if (filters.company) params.set('company', filters.company)
   if (filters.industry) params.set('industry', filters.industry)
@@ -1025,9 +1204,39 @@ async function fetchFounders(
   return apiGet<FounderSearchResponse>(`/api/founders?${params.toString()}`, signal)
 }
 
+async function fetchHNActivity(
+  filters: {
+    batch: string
+    companyName: string
+    industry: string
+    limit: number
+    minPoints: string
+    offset: number
+    postType: HNPostTypeFilter
+    sort: HNSort
+  },
+  signal: AbortSignal
+) {
+  const params = new URLSearchParams({
+    limit: String(filters.limit),
+    offset: String(filters.offset),
+    sort: filters.sort
+  })
+  if (filters.batch) params.set('batch', filters.batch)
+  if (filters.companyName) params.set('companyName', filters.companyName)
+  if (filters.industry) params.set('industry', filters.industry)
+  if (filters.minPoints) params.set('minPoints', filters.minPoints)
+  if (filters.postType !== 'All') params.set('postType', filters.postType)
+
+  return apiGet<HNActivityResponse>(`/api/hn-activity?${params.toString()}`, signal)
+}
+
 async function apiGet<T>(path: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal })
-  const payload = (await response.json()) as T & { error?: string; message?: string }
+  const payload = (await response.json()) as T & {
+    error?: string
+    message?: string
+  }
 
   if (!response.ok) {
     throw new Error(payload.message ?? payload.error ?? `Request failed with ${response.status}`)
@@ -1045,7 +1254,11 @@ function formatTime(value: Date) {
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+  return new Date(value).toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
 }
 
 function formatHost(value: string) {
@@ -1061,7 +1274,10 @@ function summarizeFounder(founder: CompanyDetail['founders'][number]) {
   return details.length ? details.slice(0, 2).join(' / ') : 'Founder profile'
 }
 
-export function parseSearchIntent(raw: string): { query: string; location: string } {
+export function parseSearchIntent(raw: string): {
+  query: string
+  location: string
+} {
   const trimmed = raw.trim()
   const locationMatch = trimmed.match(/^(?:company|companies|startup|startups)?\s*(?:in|near|from|based in)\s+(.+)$/i)
   if (!locationMatch) return { query: trimmed, location: '' }
