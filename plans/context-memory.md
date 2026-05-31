@@ -33,6 +33,7 @@ This file is the working implementation memory for the repo. Update it as phases
 - GitHub ingestion is intentionally deferred for now because most YC companies do not expose public repos, matching is noisy, and public GitHub signals should not be treated as canonical internal tech stack data.
 - Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, Voyage embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
 - MCP project memory tools are implemented and unit-tested. `packages/mcp` now registers `add_memory`, `search_memory`, and `supersede_memory` over `MemoryService`, with the production server wired to `PrismaMemoryRepository`.
+- P0 demo credibility gate: jobs must remain nonzero and representative before launch. As of 2026-05-31, bounded active-company job ingestion restored a real local jobs corpus with 136 active jobs, including current Greenhouse rows for Gusto and Amplitude.
 - Next implementation work should continue with richer company detail aggregation, optional company-specific HN alias/ignore rules, live Claude acceptance once local Claude auth and local data services are available, or repo polish, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
@@ -134,7 +135,7 @@ Status: implementation complete as of 2026-05-25. Verification passed with:
 
 Usage notes:
 
-- `pnpm --filter @yc-intelligence/core pipeline:seed` and `pipeline:refresh` both run `companies -> jobs -> hn -> embeddings` by default.
+- `pnpm --filter @yc-intelligence/core pipeline:seed` and `pipeline:refresh` both run `companies -> founders -> jobs -> hn -> embeddings` by default.
 - For safer incremental/live runs, combine stage selection and existing limits, e.g. `PIPELINE_STAGES=hn,embeddings HN_PIPELINE_LIMIT=25 EMBEDDING_PIPELINE_LIMIT=25 pnpm --filter @yc-intelligence/core pipeline:refresh`.
 - If a run fails after a successful earlier stage, rerun with `PIPELINE_RESUME_FROM=<stage>` to continue from the failed stage within the selected stage list.
 
@@ -317,6 +318,17 @@ Hardening follow-up on 2026-05-25:
 - Local migration deploy applied `20260525120000_job_ingestion_hardening` successfully.
 - Bounded live smoke passed with `JOB_PIPELINE_LIMIT=5 JOB_PIPELINE_OFFSET=0 pnpm --filter @yc-intelligence/core pipeline:jobs`, returning `{"totalCompanies":4128,"offset":0,"limit":5,"processed":5,"jobsFound":0,"jobsUpserted":0,"companiesWithJobs":0,"companiesWithZeroJobs":0,"companiesWithoutSupportedBoard":5,"transientFailures":0,"parserFailures":0,"inactiveMarked":0,"errors":0}` in about 2 seconds.
 - Adjacent offset smoke passed with `JOB_PIPELINE_LIMIT=5 JOB_PIPELINE_OFFSET=5 pnpm --filter @yc-intelligence/core pipeline:jobs`, returning the same clean no-board summary for the next five companies in about 2 seconds.
+
+P0 demo credibility restoration on 2026-05-31:
+
+- Baseline local database had only 1 active job, from the `Job Repo Co` integration-test fixture, so jobs were not representative enough for launch.
+- Reran bounded job ingestion against active companies with `JOB_PIPELINE_LIMIT=15 JOB_PIPELINE_OFFSET=1898 pnpm --filter @yc-intelligence/core pipeline:jobs`.
+- The run completed successfully with `{"totalCompanies":4121,"offset":1898,"limit":15,"processed":15,"jobsFound":135,"jobsUpserted":135,"companiesWithJobs":2,"companiesWithZeroJobs":0,"companiesWithoutSupportedBoard":13,"transientFailures":0,"parserFailures":0,"inactiveMarked":0,"errors":0}`.
+- Post-run local database had 136 active jobs: 84 for Gusto, 51 for Amplitude, and 1 remaining fixture job.
+- REST verification passed: `GET /jobs?limit=5` returned HTTP 200 with `total: 136` and real Greenhouse rows such as Amplitude `Enterprise Account Executive` and Gusto `Senior Manager, Growth Data Science`.
+- MCP verification passed through the MCP protocol against the production Prisma-backed server: `search_jobs` with `{ "limit": 5 }` returned `total: 136` and real Greenhouse apply URLs.
+- Dashboard verification passed in the Next.js Jobs view at `http://localhost:3002`: the UI showed `Open jobs: 136`, `136 results`, and visible Amplitude/Gusto rows with Greenhouse apply links.
+- Do not move to launch unless `/jobs`, MCP `search_jobs`, and the dashboard Jobs view continue to return nonzero, representative rows from the current local or production database.
 
 #### HN Ingestion Slice
 
