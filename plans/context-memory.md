@@ -32,7 +32,7 @@ This file is the working implementation memory for the repo. Update it as phases
 - GitHub ingestion is intentionally deferred for now because most YC companies do not expose public repos, matching is noisy, and public GitHub signals should not be treated as canonical internal tech stack data.
 - Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, Voyage embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
 - MCP project memory tools are implemented and unit-tested. `packages/mcp` now registers `add_memory`, `search_memory`, and `supersede_memory` over `MemoryService`, with the production server wired to `PrismaMemoryRepository`.
-- Next implementation work should continue with richer company detail aggregation, GitHub Actions CI, or MCP E2E/manual Claude acceptance testing, while preserving the project-memory boundary established in Phase 1.
+- Next implementation work should continue with richer company detail aggregation, live Claude acceptance once local Claude auth and local data services are available, or repo polish, while preserving the project-memory boundary established in Phase 1.
 
 ## Phase Checklist
 
@@ -343,8 +343,31 @@ Live smoke verification notes:
 
 - [x] Add project memory unit tests.
 - [x] Add opt-in project memory integration tests.
-- [ ] Add MCP E2E tests.
+- [x] Add MCP E2E tests.
 - [ ] Run manual Claude acceptance queries. Claude is the target MCP client for acceptance testing and demo workflows.
+
+#### Phase 6 MCP E2E And Claude Acceptance
+
+- [x] Add protocol-level MCP E2E coverage using the official SDK `Client` and `InMemoryTransport`.
+- [x] Verify all registered tools are listed by the MCP client: `search_companies`, `get_company_detail`, `search_jobs`, `get_hn_activity`, `semantic_search`, `search_founders`, `add_memory`, `search_memory`, and `supersede_memory`.
+- [x] Verify every registered tool can be called through the MCP client against deterministic fixture-backed services.
+- [x] Verify unknown company detail returns a graceful not-found payload through the MCP protocol.
+- [ ] Complete the 10-query manual Claude acceptance suite against production MCP data.
+
+Status: MCP E2E complete as of 2026-05-31. Verification passed with:
+
+- `pnpm --filter @yc-intelligence/mcp typecheck`
+- `pnpm --filter @yc-intelligence/mcp test`
+- `pnpm --filter @yc-intelligence/mcp build`
+
+Manual Claude acceptance attempt on 2026-05-31:
+
+- `claude` was installed at `/Users/malm/.local/bin/claude`.
+- A non-interactive Claude Code probe was run with `--strict-mcp-config` pointing at `packages/mcp/dist/index.js`.
+- The probe did not reach MCP acceptance because Claude auth failed first with `apiKeyHelper failed: exited 44` and keychain lookup errors.
+- `ANTHROPIC_API_KEY` was not present in the shell environment.
+- Docker was also unavailable from this session (`Cannot connect to the Docker daemon...`), so production MCP data-backed acceptance would still need local Postgres/Redis or another reachable `DATABASE_URL` after Claude auth is fixed.
+- To finish manual acceptance, authenticate Claude Code or export `ANTHROPIC_API_KEY`, start local services or point `DATABASE_URL` at a populated database, run `pnpm --filter @yc-intelligence/mcp build`, then execute the 10 acceptance queries from `plans/implementation-plan.md`.
 
 ### Phase 7: CI/CD & Launch
 
