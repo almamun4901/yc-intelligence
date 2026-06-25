@@ -1,32 +1,139 @@
 # YC Company Intelligence
 
-Monorepo for YC company intelligence across MCP tools, a Fastify REST API, and a Next.js dashboard. Shared domain logic lives in `packages/core`; MCP, REST, and web packages are thin delivery layers over the same services.
+YC Company Intelligence is a local intelligence workspace for exploring YC companies, founders, jobs, Hacker News activity, and semantic company matches. It ships three product surfaces over the same core services:
+
+- MCP tools for Claude and other MCP clients.
+- A Fastify REST API for programmatic access.
+- A Next.js dashboard for browsing and demo workflows.
+
+Shared domain logic, repositories, pipeline jobs, config, Prisma models, and utility code live in `packages/core`. The MCP, API, and web packages are delivery layers over that core.
 
 ## Packages
 
-- `packages/core`: domain, repositories, services, pipeline, shared config, and utilities.
-- `packages/mcp`: MCP server adapter over the core package.
-- `packages/api`: Fastify REST API adapter over the core package.
-- `packages/web`: Next.js dashboard for company, job, founder, and Hacker News activity exploration.
+- `packages/core`: domain types, services, repositories, Prisma, ingestion pipeline, semantic search, config, and logging.
+- `packages/mcp`: MCP server adapter over core services.
+- `packages/api`: Fastify REST API adapter over core services.
+- `packages/web`: Next.js dashboard for companies, jobs, founders, and HN activity.
 
 ## Setup
+
+Prerequisites: Node.js 20+, pnpm 10.30.1, Docker, and Docker Compose.
 
 ```bash
 pnpm install
 cp .env.example .env
 docker compose up -d
+pnpm --filter @yc-intelligence/core prisma:generate
+pnpm --filter @yc-intelligence/core exec prisma migrate deploy
 pnpm build
 ```
 
-The `.env` file needs real `GITHUB_TOKEN` and `VOYAGE_API_KEY` values before pipeline and embedding work can run. `ANTHROPIC_API_KEY` is reserved for future Claude-powered enrichment.
+Local Postgres is exposed on host port `5433` to avoid colliding with a local Postgres on `5432`. Redis is exposed on `6379`.
 
-Postgres is exposed on host port `5433` to avoid colliding with an existing local Postgres on `5432`.
+Useful root commands:
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm lint
+```
+
+## Environment
+
+`.env.example` includes the baseline local values. Important variables:
+
+- `DATABASE_URL`: Postgres connection string. Defaults to the Docker Compose database at `localhost:5433`.
+- `REDIS_URL`: Redis connection string for best-effort API caching.
+- `VOYAGE_API_KEY`: required for embeddings, `pipeline:embeddings`, `semantic_search`, and semantic smoke.
+- `GITHUB_TOKEN`: reserved for future GitHub ingestion. Current GitHub ingestion is deferred.
+- `ANTHROPIC_API_KEY`: reserved for Claude-powered workflows and acceptance checks.
+- `CRUNCHBASE_API_KEY`: reserved for future funding/enrichment work.
+- `PIPELINE_CONCURRENCY`: concurrent pipeline fetch batch size.
+- `PIPELINE_DELAY_MS`: base HTTP delay used by pipeline HTTP clients.
+- `PIPELINE_STAGES`: comma-separated orchestrator stages, such as `jobs,hn`.
+- `PIPELINE_RESUME_FROM`: resume an orchestrated run from a stage, such as `hn`.
+- `PIPELINE_SCHEDULE_CRON`: cron expression for `pipeline:schedule`.
+- `PIPELINE_RUN_ON_START`: set to `1` to run once when the scheduler starts.
+
+Additional pipeline knobs supported by code:
+
+- `FOUNDER_PIPELINE_LIMIT`, `FOUNDER_PIPELINE_OFFSET`
+- `JOB_PIPELINE_LIMIT`, `JOB_PIPELINE_OFFSET`
+- `HN_PIPELINE_LIMIT`, `HN_LOOKBACK_DAYS`, `HN_MAX_PAGES_PER_COMPANY`
+- `EMBEDDING_PIPELINE_LIMIT`, `EMBEDDING_PIPELINE_OFFSET`, `EMBEDDING_PIPELINE_STATUS`, `EMBEDDING_PIPELINE_STALE_ONLY`, `EMBEDDING_PIPELINE_BATCH_SIZE`
+- `SEMANTIC_SMOKE_LIMIT`, `SEMANTIC_SMOKE_QUERY`
+
+## MCP Server
+
+Build before launching the MCP server:
+
+```bash
+pnpm --filter @yc-intelligence/mcp build
+```
+
+The MCP binary is:
+
+```bash
+packages/mcp/dist/index.js
+```
+
+Production MCP tools:
+
+- `search_companies`: search YC companies by query, batch, status, industry, location, hiring status, limit, and offset.
+- `get_company_detail`: fetch a company by slug, including founders and recent HN posts when available.
+- `search_jobs`: search open jobs by title, tech stack, remote status, batch, industry, company ID, limit, and offset.
+- `search_founders`: search founders by name/query, company, batch, industry, previous employer, school, limit, and offset.
+- `get_hn_activity`: search HN posts by company, batch, industry, post type, points, relevance score, date window, and sort.
+- `semantic_search`: find companies by embedding similarity while preserving structured filters.
+- `add_memory`: add project-level decisions, research notes, implementation notes, source summaries, or open questions.
+- `search_memory`: search project memory entries.
+- `supersede_memory`: replace an old project memory entry with a new active one.
+
+Memory tools are for project memory only. They are intentionally separate from YC company intelligence data.
+
+## REST API
+
+Start the production API after building:
+
+```bash
+pnpm --filter @yc-intelligence/api build
+PORT=3001 node packages/api/dist/index.js
+```
+
+Available GET routes:
+
+- `/health`
+- `/companies`
+- `/companies/:slug`
+- `/jobs`
+- `/founders`
+- `/hn-activity`
+- `/search/semantic`
+
+Examples:
+
+```bash
+curl 'http://127.0.0.1:3001/health'
+curl 'http://127.0.0.1:3001/companies?batch=W24&isHiring=true&limit=10'
+curl 'http://127.0.0.1:3001/companies/airbnb'
+curl 'http://127.0.0.1:3001/jobs?title=Engineer&limit=10'
+curl 'http://127.0.0.1:3001/founders?previousEmployer=Stripe&limit=10'
+curl 'http://127.0.0.1:3001/hn-activity?postType=Show%20HN&minPoints=25&sort=signal'
+curl 'http://127.0.0.1:3001/search/semantic?query=developer%20tools%20for%20agents&limit=10'
+```
 
 ## Dashboard
 
-The dashboard is a real Next.js app, not a scaffold. It includes company search/detail, job search, founder search, HN activity filters, and summary metrics backed by the REST API.
+The dashboard is a working Next.js app, not a scaffold. It provides:
 
-Run the API and web app in separate terminals after building:
+- Company search and detail views.
+- Open job search and filters.
+- Founder search.
+- HN Activity filters with relevance signals.
+- Dataset metrics for demo readiness.
+
+Run the API and dashboard in separate terminals:
 
 ```bash
 pnpm build
@@ -34,48 +141,23 @@ PORT=3001 node packages/api/dist/index.js
 pnpm --filter @yc-intelligence/web dev
 ```
 
-The web app proxies `/api/*` to the REST API. By default it targets `http://127.0.0.1:3001`; override that with `YC_INTELLIGENCE_API_URL` if the API runs elsewhere.
+The dashboard proxies `/api/*` to the REST API. By default it targets `http://127.0.0.1:3001`; set `YC_INTELLIGENCE_API_URL` for a different API base URL.
 
-## REST API
-
-The production API server wires Prisma-backed services for companies, jobs, founders, HN activity, and semantic search. Available GET routes:
-
-- `/health`
-- `/companies`
-- `/companies/:slug`, including founders and recent HN posts when present
-- `/jobs`
-- `/founders`
-- `/hn-activity`
-- `/search/semantic`
-
-Useful examples:
+If port `3000` is occupied, run the app on another port:
 
 ```bash
-curl 'http://127.0.0.1:3001/companies?batch=W24&isHiring=true&limit=10'
-curl 'http://127.0.0.1:3001/founders?previousEmployer=Stripe&limit=10'
-curl 'http://127.0.0.1:3001/hn-activity?postType=Show%20HN&minPoints=25&sort=signal'
-curl 'http://127.0.0.1:3001/search/semantic?query=developer%20tools%20for%20agents&limit=10'
+pnpm --dir packages/web exec next dev -p 3002
 ```
-
-## MCP Tools
-
-The MCP server registers these production tools:
-
-- `search_companies`
-- `get_company_detail`
-- `search_jobs`
-- `search_founders`
-- `get_hn_activity`
-- `semantic_search`
-- `add_memory`
-- `search_memory`
-- `supersede_memory`
-
-The memory tools store project-level decisions, research notes, implementation notes, source summaries, and open questions separately from YC company intelligence data.
 
 ## Pipeline
 
-Individual pipeline slices are still available:
+Build core before running pipeline commands:
+
+```bash
+pnpm --filter @yc-intelligence/core build
+```
+
+Individual pipeline stages:
 
 ```bash
 pnpm --filter @yc-intelligence/core pipeline:companies
@@ -85,9 +167,7 @@ pnpm --filter @yc-intelligence/core pipeline:hn
 pnpm --filter @yc-intelligence/core pipeline:embeddings
 ```
 
-The `pipeline:founders` slice enriches founder rows from YC company pages. The HN slice ingests Hacker News activity through the Algolia API, classifies posts as `Show HN`, `Ask HN`, `Launch`, `Hiring`, or `Other`, and stores relevance scores plus match reasons.
-
-The orchestrated paths run stages in dependency order: companies, founders, jobs, HN, then embeddings.
+Orchestrated pipeline paths:
 
 ```bash
 pnpm --filter @yc-intelligence/core pipeline:seed
@@ -95,13 +175,61 @@ pnpm --filter @yc-intelligence/core pipeline:refresh
 pnpm --filter @yc-intelligence/core pipeline:schedule
 ```
 
-Useful runtime knobs:
+The orchestrator runs stages in dependency order:
 
-- `PIPELINE_STAGES=jobs,hn` runs only selected stages.
-- `PIPELINE_RESUME_FROM=hn` resumes from a later stage in the selected stage list.
-- `PIPELINE_SCHEDULE_CRON="0 3 * * *"` controls the scheduler cron.
-- `PIPELINE_RUN_ON_START=1` runs immediately when the scheduler starts.
-- Existing per-stage limits still work, such as `FOUNDER_PIPELINE_LIMIT`, `JOB_PIPELINE_LIMIT`, `HN_PIPELINE_LIMIT`, and `EMBEDDING_PIPELINE_LIMIT`.
-- `FOUNDER_PIPELINE_OFFSET` runs founder enrichment from a specific active-company offset for bounded batch windows.
-- `JOB_PIPELINE_OFFSET` runs job ingestion from a specific active-company offset for bounded batch windows.
-- `HN_LOOKBACK_DAYS` and `HN_MAX_PAGES_PER_COMPANY` control HN backfill scope.
+```text
+companies -> founders -> jobs -> hn -> embeddings
+```
+
+Useful bounded runs:
+
+```bash
+FOUNDER_PIPELINE_LIMIT=50 pnpm --filter @yc-intelligence/core pipeline:founders
+JOB_PIPELINE_LIMIT=15 JOB_PIPELINE_OFFSET=1898 pnpm --filter @yc-intelligence/core pipeline:jobs
+HN_PIPELINE_LIMIT=250 HN_LOOKBACK_DAYS=3650 HN_MAX_PAGES_PER_COMPANY=2 pnpm --filter @yc-intelligence/core pipeline:hn
+EMBEDDING_PIPELINE_LIMIT=25 pnpm --filter @yc-intelligence/core pipeline:embeddings
+PIPELINE_STAGES=jobs,hn JOB_PIPELINE_LIMIT=25 HN_PIPELINE_LIMIT=25 pnpm --filter @yc-intelligence/core pipeline:refresh
+```
+
+`pipeline:founders` enriches founder rows from YC company pages. `pipeline:hn` ingests Hacker News activity through Algolia, classifies posts as `Show HN`, `Ask HN`, `Launch`, `Hiring`, or `Other`, and stores relevance scores plus match reasons.
+
+## Semantic Smoke
+
+Semantic search depends on `VOYAGE_API_KEY`, local Postgres with pgvector, and company rows. Run:
+
+```bash
+pnpm --filter @yc-intelligence/core build
+SEMANTIC_SMOKE_LIMIT=5 pnpm --filter @yc-intelligence/core smoke:semantic
+```
+
+Optional query override:
+
+```bash
+SEMANTIC_SMOKE_QUERY='AI infrastructure for developers' SEMANTIC_SMOKE_LIMIT=5 pnpm --filter @yc-intelligence/core smoke:semantic
+```
+
+Success returns JSON with `ok: true`, embedding refresh stats, and semantic search results.
+
+## Known Data Limitations
+
+- GitHub ingestion is deferred. Public repo matching is noisy for many YC companies, and GitHub should not be treated as canonical internal tech stack data.
+- Funding and Crunchbase-style enrichment are deferred. Funding fields should not be assumed complete.
+- Job board coverage is imperfect. The jobs pipeline currently supports common Greenhouse, Lever, and Ashby public board patterns, but many companies use custom career pages, different ATS slugs, or no supported board.
+- HN relevance is probabilistic. Scores and match reasons improve precision, but generic company names can still need company-specific aliases or ignore rules.
+- Semantic search is for discovery, not factual truth. Use structured filters and source rows for exact facts such as hiring status, batch, status, location, and tags.
+
+## Current Demo Gate
+
+Do not move to launch unless jobs are nonzero and representative across all three surfaces:
+
+- REST `/jobs`
+- MCP `search_jobs`
+- Dashboard Jobs view
+
+The latest recorded local restoration in `plans/context-memory.md` used:
+
+```bash
+JOB_PIPELINE_LIMIT=15 JOB_PIPELINE_OFFSET=1898 pnpm --filter @yc-intelligence/core pipeline:jobs
+```
+
+That run restored a real local corpus with 136 active jobs, including Greenhouse rows for Gusto and Amplitude.
