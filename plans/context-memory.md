@@ -31,10 +31,10 @@ This file is the working implementation memory for the repo. Update it as phases
 - HN activity is implemented across ingestion, REST, MCP, and dashboard. Core now has `HNPost`, `CompanyHNSyncState`, `IHNPostRepository`, `PrismaHNPostRepository`, `HNFetcher`, `HNService`, and `pipeline:hn`; MCP registers `get_hn_activity`; API exposes `/hn-activity`; the dashboard has a first-class HN Activity view; company detail includes recent/top HN posts when an HN repository is injected.
 - HN relevance scoring is implemented. `HNPost` stores `relevanceScore` and `matchReasons`; `HNFetcher` scores domain, `Show HN`/`Launch HN` title, exact title alias, URL slug, and story text signals; broad/generic names require stricter evidence. API/MCP return score/reasons, and the dashboard displays relevance.
 - GitHub ingestion is intentionally deferred for now because most YC companies do not expose public repos, matching is noisy, and public GitHub signals should not be treated as canonical internal tech stack data.
-- Semantic search company vertical slice is implemented and unit-tested. Core now has company search documents, Voyage embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, and REST `GET /search/semantic`. Live embedding smoke verification remains future work.
+- Semantic search company vertical slice is implemented, unit-tested, and live-smoke verified. Core now has company search documents, Voyage embedding provider, `CompanyEmbedding`, `ICompanyEmbeddingRepository`, `PrismaCompanyEmbeddingRepository`, `EmbeddingService`, `pipeline:embeddings`, MCP `semantic_search`, REST `GET /search/semantic`, and `smoke:semantic`.
 - MCP project memory tools are implemented and unit-tested. `packages/mcp` now registers `add_memory`, `search_memory`, and `supersede_memory` over `MemoryService`, with the production server wired to `PrismaMemoryRepository`.
 - P0 demo credibility gate: jobs must remain nonzero and representative before launch. As of 2026-05-31, bounded active-company job ingestion restored a real local jobs corpus with 136 active jobs, including current Greenhouse rows for Gusto and Amplitude.
-- Next implementation work should continue with richer company detail aggregation, optional company-specific HN alias/ignore rules, live Claude acceptance once local Claude auth and local data services are available, or repo polish, while preserving the project-memory boundary established in Phase 1.
+- Launch readiness now has a concrete checklist in `plans/launch-checklist.md`. Next work should prioritize that checklist, especially fresh demo-gate verification, Claude MCP acceptance, DB-backed CI, job result company context, and repo polish.
 
 ## Phase Checklist
 
@@ -145,7 +145,7 @@ Usage notes:
 - [x] Add company service.
 - [x] Add job service.
 - [x] Add HN service.
-- [ ] Add founder service.
+- [x] Add founder service.
 - [x] Add embedding service.
 - [x] Keep business logic out of adapters.
 
@@ -200,7 +200,7 @@ Semantic smoke follow-up on 2026-05-24:
 - Local database baseline before the smoke attempt was 5,942 companies and 6 company embeddings.
 - `EMBEDDING_PIPELINE_LIMIT=5 pnpm --filter @yc-intelligence/core pipeline:embeddings` reached the previous embeddings API path but failed with HTTP 401.
 - `pnpm --filter @yc-intelligence/core smoke:semantic` also reached the live embeddings path and failed clearly because the embeddings key was invalid.
-- The semantic live smoke remains blocked on a valid `VOYAGE_API_KEY`; after updating `.env`, rerun `pnpm --filter @yc-intelligence/core build`, `pnpm --filter @yc-intelligence/core exec prisma migrate deploy`, and `pnpm --filter @yc-intelligence/core smoke:semantic`, then mark the live-smoke checklist item complete if it returns `ok: true`.
+- The initial semantic live smoke was blocked on an invalid/missing `VOYAGE_API_KEY`; after the key was updated, the smoke passed as recorded below.
 - On 2026-05-25 the embedding provider was switched from the previous provider to Voyage because the project will use Anthropic for Claude features and Anthropic does not provide a native embeddings model. A migration clears incompatible existing embeddings and changes `company_embeddings.embedding` to `vector(1024)` for `voyage-3.5`.
 - Semantic smoke passed on 2026-05-25 after adding a valid `VOYAGE_API_KEY` and syncing the package-level `.env`. `SEMANTIC_SMOKE_LIMIT=1 pnpm --filter @yc-intelligence/core smoke:semantic` returned `ok: true` for query `AI infrastructure for developers`, with `refresh: {"processed":1,"generated":0,"skipped":1}` and `search: {"total":3,"count":3}`. Local Postgres contained 3 `company_embeddings` rows after the smoke.
 
@@ -392,10 +392,12 @@ Manual Claude acceptance attempt on 2026-05-31:
 ### Phase 7: CI/CD & Launch
 
 - [x] Add GitHub Actions CI.
-- [ ] Add README, license, and repo polish.
-- [ ] Prepare demo and launch checklist.
+- [x] Refresh README around the current MCP + REST + dashboard product.
+- [x] Prepare launch checklist.
+- [ ] Add license and final repo polish.
+- [ ] Complete launch checklist.
 
-Status: baseline CI added as of 2026-05-25. The workflow runs on PRs and pushes to `main`, sets up Node 20 and pnpm 10.30.1, installs with the lockfile, generates the Prisma client, then runs `pnpm typecheck`, package test suites sequentially, `pnpm build`, and `pnpm lint`. It intentionally does not run `RUN_DB_TESTS=1` or start Postgres/Redis services yet; DB-backed CI should be a follow-up once the lightweight gate is stable.
+Status: baseline CI added as of 2026-05-25. README refresh and launch checklist were completed on 2026-06-28. The workflow runs on PRs and pushes to `main`, sets up Node 20 and pnpm 10.30.1, installs with the lockfile, generates the Prisma client, then runs `pnpm typecheck`, package test suites sequentially, `pnpm build`, and `pnpm lint`. It intentionally does not run `RUN_DB_TESTS=1` or start Postgres/Redis services yet; DB-backed CI should be a follow-up once the lightweight gate is stable.
 
 ## Decisions Locked In
 
